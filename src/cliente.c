@@ -36,7 +36,7 @@ void* cliente(void* arg) {
                 // gestire errore
             }
             while (cliente.stato_cliente == ENTRATO) {
-                if (cond_wait(cliente.cond_cassa, cliente.mutex_cliente) != 0) {
+                if (cond_wait(cliente.cond_incoda, cliente.mutex_cliente) != 0) {
                     perror("cliente cond wait 1");
                     // GESTIRE ERRORE
                 }

@@ -19,7 +19,7 @@ void* cassa(void* arg) {
             perror("mutex cassa");
         }
         void* temp_cliente = pop(&cassa.coda);
-        if (temp_cliente == END_OF_SERVICE) continue;
+        if (temp_cliente == END_OF_SERVICE) break;
         cliente_opt_t cliente = *((cliente_opt_t*)temp_cliente);
         
         long t_servizio = cassa.tempo_fisso + cassa.tempo_prodotto * cliente.num_prodotti;
@@ -41,16 +41,17 @@ void* cassa(void* arg) {
             perror("mutex cassa");
         }
         cliente.stato_cliente = FINITO_CASSA;
-        if(cond_signal(cliente.cond_cassa) != 0) {
+        if(cond_signal(cliente.cond_incoda) != 0) {
             perror("signal client");
         }
         if (mutex_unlock(cliente.mutex_cliente) != 0) {
             perror("mutex cassa");
         }
     }
-    if (cassa.stato_cassa == TERMINAZIONE) {
+    if (cassa.stato_cassa == CHIUSURA) {
         // FLUSH CLIENTI servili tutti
-    } else {
+        printf("Ricevuta chiusura\n");
+    } else { /* stato = CHIUSURA_IMMEDIATA */
     }
     if (mutex_unlock(cassa.mutex) != 0) {
         perror("mutex cassa");

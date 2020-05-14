@@ -76,4 +76,13 @@ int cond_signal(pthread_cond_t* cond) {
     return 0;
 }
 
+int cond_broadcast(pthread_cond_t* cond) {
+    int err = 0;
+    if ((err = pthread_cond_broadcast(cond)) != 0) {
+        errno = err;
+        return -1;
+    }
+    return 0;
+}
+
 #endif /* UTIL_H */

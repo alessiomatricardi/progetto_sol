@@ -63,5 +63,13 @@ int push(BQueue_t *q, void* data);
 */
 void* pop(BQueue_t *q);
 
+/**
+ * restituisce la dimensione attuale della coda
+ * 
+ * @param q coda
+ * @return numero di elementi nella coda
+ * @return -1 se fallimento (errore con mutex)
+*/
+int getSize(BQueue_t q);
 
 #endif /* B_QUEUE_H */

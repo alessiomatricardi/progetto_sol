@@ -117,3 +117,15 @@ void* pop(BQueue_t* q) {
     }
     return value;
 }
+
+int getSize(BQueue_t q) {
+    int length = 0;
+    if (mutex_lock(&(q.mutex)) == -1) {
+        return -1;
+    }
+    length = q.count;
+    if (mutex_unlock(&(q.mutex)) == -1) {
+        return -1;
+    }
+    return length;
+}

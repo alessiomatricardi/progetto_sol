@@ -1,4 +1,7 @@
 #define _POSIX_C_SOURCE 200112L
+#include <cassa.h>
+#include <cliente.h>
+#include <direttore.h>
 #include <parsing.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,11 +58,46 @@ int main(int argc, char** argv) {
     }
     printf("casse iniziali %d\nt prodotto %d\nt agg clienti %d\n", config.casse_iniziali, config.t_singolo_prodotto, config.t_agg_clienti);
     printf("t max %d\np max %d\nk max %d\ns1 %d\ns2 %d\nc max %d\ne %d\nlog %s\n", config.t_max, config.p_max, config.k_max, config.s1, config.s2, config.c_max, config.e, config.log_file_name);
-    
+
     // fa tutto
 
-    while(1) {
-        
+    /* strutture dati da utilizzare */
+
+    cliente_opt_t clienti_opt[config.c_max];
+    cassa_opt_t casse_opt[config.k_max];
+    direttore_opt_t direttore_opt;
+    BQueue_t code_casse[config.k_max];
+
+    /* thread in gioco nel sistema */
+
+    pthread_t th_clienti[config.c_max];
+    pthread_t th_casse[config.k_max];
+    pthread_t th_direttore;
+
+    /* mutex e variabili di condizione in gioco nel sistema */
+    pthread_mutex_t main_mutex;
+    pthread_mutex_t manager_mutex;
+    pthread_mutex_t client_mutex[config.c_max];
+
+    pthread_cond_t auth_cond;
+    pthread_cond_t cond_casse;
+    pthread_cond_t cond_incoda;
+
+    /* creazione thread direttore */
+    direttore_opt.stato_direttore = ATTIVO;
+    direttore_opt.casse = casse_opt;
+    direttore_opt.mutex = &main_mutex;
+    direttore_opt.mutex_direttore = &manager_mutex;
+    direttore_opt.cond_auth = &auth_cond;
+    direttore_opt.k_max = config.k_max;
+    direttore_opt.soglia_1 = config.s1;
+    direttore_opt.soglia_2 = config.s2;
+    /* creazione threads casse */
+    for(size_t i = 0; i < config.k_max; i++) {
+
+    }
+    /* creazione threads clienti */
+    for (size_t i = 0; i < config.k_max; i++) {
     }
     return 0;
 }

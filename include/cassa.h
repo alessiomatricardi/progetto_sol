@@ -8,8 +8,8 @@
 typedef enum _cassa_state {
     APERTA,
     CHIUSA,
-    TERMINAZIONE,
-    TERMINAZIONE_IMMEDIATA,
+    CHIUSURA,
+    CHIUSURA_IMMEDIATA,
 } cassa_state_t;
 
 typedef struct _cassa {

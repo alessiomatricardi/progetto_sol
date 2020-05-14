@@ -15,7 +15,7 @@ typedef struct _cliente {
     /* variabili condivise in scrittura con altri thread */
     cliente_state_t stato_cliente; /* stato attuale del cliente */
     pthread_mutex_t* mutex_cliente;
-    pthread_cond_t* cond_cassa;
+    pthread_cond_t* cond_incoda;
     pthread_mutex_t* mutex;
     pthread_cond_t* cond_auth;
     BQueue_t* coda_casse;          /* insieme delle code delle casse */

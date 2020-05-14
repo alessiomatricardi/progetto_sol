@@ -8,7 +8,8 @@
 
 typedef enum _direttore_state {
     ATTIVO,
-    IN_CHIUSURA,
+    CHIUSURA,
+    CHIUSURA_IMMEDIATA,
 } direttore_state_t;
 
 typedef struct _direttore {
