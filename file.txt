@@ -1,0 +1,27 @@
+cliente:
+ACQUISTANDO
+IN_CODA
+IN_CASSA
+ATTESA_AUT
+
+supermercato:
+APERTO
+IN_CHIUSURA_IMMEDIATA
+IN_CHIUSURA
+CHIUSO
+
+cassa:
+IN_APERTURA
+APERTA_LIBERA ???
+APERTA_SERVIZIO
+IN_CHIUSURA
+CHIUSA
+
+direttore
+ATTIVO
+------
+
+thread di supporto per notifiche con sigwait
+array casse aperte
+coda di clienti da riattivare quando arriviamo a c-e
+https://stackoverflow.com/questions/1157209/is-there-an-alternative-sleep-function-in-c-to-milliseconds
