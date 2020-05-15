@@ -4,6 +4,7 @@
 #ifndef PARSING_H
 #define PARSING_H
 #include <icl_hash.h>
+#include <bool.h>
 
 /* grandezza massima del buffer (ogni riga del file config) */
 #define MAX_BUFFER 256
@@ -13,12 +14,6 @@
 
 /* massima grandezza del nome del file di log */
 #define MAX_LOG_FILENAME MAX_CONFIG_ATTR_SIZE
-
-/* tipo booleano */
-typedef enum __bool {
-    false,
-    true,
-} bool;
 
 /* struct config */
 typedef struct _config {

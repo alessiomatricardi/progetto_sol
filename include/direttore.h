@@ -1,7 +1,7 @@
 #ifndef DIRETTORE_H
 #define DIRETTORE_H
 #include <cassa.h>
-#include <stdlib.h>
+#include <bool.h>
 
 /* numero minimo di casse aperte */
 #define MIN_CASSE_APERTE 1
@@ -16,8 +16,10 @@ typedef struct _direttore {
     direttore_state_t stato_direttore;
     pthread_mutex_t* mutex_direttore;
     cassa_opt_t* casse;
-    pthread_mutex_t* mutex;
+    pthread_mutex_t* main_mutex;
     pthread_cond_t* cond_auth;
+    bool* auth_array;
+    int num_clienti;
     int casse_tot;
     int* casse_attive;
     int soglia_1;

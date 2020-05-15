@@ -2,6 +2,7 @@
 #define CLIENTE_H
 #include <bqueue.h>
 #include <cassa.h>
+#include <bool.h>
 
 #define MIN_T_ACQUISTI 10
 
@@ -19,9 +20,10 @@ typedef struct _cliente {
     cliente_state_t stato_cliente; /* stato attuale del cliente */
     pthread_mutex_t* mutex_cliente;
     pthread_cond_t* cond_incoda;
-    pthread_mutex_t* mutex;
+    pthread_mutex_t* main_mutex;
+    bool* authorized;
     pthread_cond_t* cond_auth;
-    cassa_state_t** stato_casse;
+    cassa_state_t* stato_casse;
     BQueue_t** coda_casse; /* insieme delle code delle casse */
     int casse_tot;
     int* casse_attive;

@@ -1,8 +1,9 @@
 #define _POSIX_C_SOURCE 200112L
 #include <direttore.h>
 #include <util.h>
+#include <string.h>
 
-void autorizza_uscita(pthread_mutex_t* mtx, pthread_cond_t* cond);
+void autorizza_uscita(bool* auth_array, int num_clienti, pthread_mutex_t* mtx, pthread_cond_t* cond);
 
     void* direttore(void* arg) {
     direttore_opt_t* direttore = (direttore_opt_t*)arg;
@@ -13,23 +14,25 @@ void autorizza_uscita(pthread_mutex_t* mtx, pthread_cond_t* cond);
             perror("cliente mutex lock 2");
             // gestire errore
         }
-        if((stato = direttore->stato_direttore) != ATTIVO) { break; }
+        if((stato = direttore->stato_direttore) != ATTIVO) {
+            if (mutex_unlock(direttore->mutex_direttore) != 0) {
+                perror("cliente mutex lock 2");
+                // gestire errore
+            }
+            break;
+        }
         if (mutex_unlock(direttore->mutex_direttore) != 0) {
             perror("cliente mutex lock 2");
             // gestire errore
         }
         // controlla notifiche - chiudi casse
         // risveglia clienti che attendono autorizzazione per uscire
-        autorizza_uscita(direttore->mutex, direttore->cond_auth);
-    }
-    if (mutex_unlock(direttore->mutex_direttore) != 0) {
-        perror("cliente mutex lock 2");
-        // gestire errore
+        autorizza_uscita(direttore->auth_array, direttore->num_clienti, direttore->main_mutex, direttore->cond_auth);
     }
     printf("arrivato qui\n");
     if(stato == CHIUSURA) {
         /* tutte le casse vanno in stato di CHIUSURA */
-        if (mutex_lock(direttore->mutex) != 0) {
+        if (mutex_lock(direttore->main_mutex) != 0) {
             perror("cliente mutex lock 2");
             // gestire errore
         }
@@ -43,7 +46,7 @@ void autorizza_uscita(pthread_mutex_t* mtx, pthread_cond_t* cond);
                 perror("signal cassa");
             }
         }
-        if (mutex_unlock(direttore->mutex) != 0) {
+        if (mutex_unlock(direttore->main_mutex) != 0) {
             perror("cliente mutex lock 2");
             // gestire errore
         }
@@ -53,10 +56,13 @@ void autorizza_uscita(pthread_mutex_t* mtx, pthread_cond_t* cond);
     pthread_exit((void*)0);
 }
 
-void autorizza_uscita(pthread_mutex_t* mtx, pthread_cond_t* cond) {
+void autorizza_uscita(bool* auth_array, int num_clienti, pthread_mutex_t* mtx, pthread_cond_t* cond) {
     if (mutex_lock(mtx) != 0) {
         perror("cliente mutex lock 2");
         // gestire errore
+    }
+    for(size_t i = 0; i < num_clienti; i++) {
+        auth_array[i] = true;
     }
     if (cond_broadcast(cond) != 0) {
         perror("direttore cond broadcast 2");

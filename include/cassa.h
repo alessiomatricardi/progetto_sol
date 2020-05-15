@@ -1,7 +1,6 @@
 #ifndef CASSA_H
 #define CASSA_H
 #include <bqueue.h>
-#include <stdlib.h>
 
 #define END_OF_SERVICE (void*)0x01
 #define MIN_TF_CASSA 20
@@ -17,7 +16,7 @@ typedef enum _cassa_state {
 typedef struct _cassa {
     cassa_state_t* stato_cassa;
     BQueue_t* coda;
-    pthread_mutex_t* mutex;
+    pthread_mutex_t* main_mutex;
     pthread_cond_t* cond;
     //int thid;
     int tempo_fisso;

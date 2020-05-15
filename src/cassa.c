@@ -8,21 +8,21 @@ void* cassa(void* arg) {
     int t_notifica = cassa->intervallo_notifica;
     cassa_state_t stato;
     while (1) {
-        if (mutex_lock(cassa->mutex) != 0) {
+        if (mutex_lock(cassa->main_mutex) != 0) {
             perror("mutex cassa");
         }
         while ((stato = *(cassa->stato_cassa)) == CHIUSA) {
-            if (cond_wait(cassa->cond, cassa->mutex) != 0) {
+            if (cond_wait(cassa->cond, cassa->main_mutex) != 0) {
                 perror("cond");
             }
         }
         if (stato != APERTA) {
-            if (mutex_unlock(cassa->mutex) != 0) {
+            if (mutex_unlock(cassa->main_mutex) != 0) {
                 perror("mutex cassa");
             }
             break;
         }
-        if (mutex_unlock(cassa->mutex) != 0) {
+        if (mutex_unlock(cassa->main_mutex) != 0) {
             perror("mutex cassa");
         }
         void* temp_cliente = pop(cassa->coda);

@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
     cassa_opt_t casse_opt[config.k_tot];
     direttore_opt_t direttore_opt;
     BQueue_t* code_casse[config.k_tot];
-    cassa_state_t* stato_casse[config.k_tot];
+    cassa_state_t stato_casse[config.k_tot];
 
     /* thread in gioco nel sistema */
 
@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
 
     /* mutex e variabili di condizione in gioco nel sistema */
     pthread_mutex_t main_mutex;
-    pthread_mutex_t manager_mutex;
+    pthread_mutex_t quit_mutex;
     pthread_mutex_t client_mutex[config.c_max];
 
     pthread_cond_t auth_cond;
@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
     /* inizializzazione mutex e variabili di condizione */
     /* attributi per ora nulli */
     pthread_mutex_init(&main_mutex, NULL);
-    pthread_mutex_init(&manager_mutex, NULL);
+    pthread_mutex_init(&quit_mutex, NULL);
     for (size_t i = 0; i < config.c_max; i++) {
         pthread_mutex_init(&client_mutex[i], NULL);
     }
@@ -103,23 +103,22 @@ int main(int argc, char** argv) {
         pthread_cond_init(&cond_incoda[i], NULL);
     }
 
-    /* inizializzazione code e stato */
+    /* inizializzazione code e stato casse */
     for (size_t i = 0; i < config.k_tot; i++) {
         code_casse[i] = init_BQueue(config.c_max);
-        stato_casse[i] = (cassa_state_t*)malloc(sizeof(cassa_state_t));
-        if(CHECK_NULL(stato_casse[i])) {
-            perror("stato casse");
-        }
     }
 
     int casse_iniziali = config.casse_iniziali;
+    bool auth_array[config.c_max];
 
     /* creazione thread direttore */
     direttore_opt.stato_direttore = ATTIVO;
     direttore_opt.casse = casse_opt;
-    direttore_opt.mutex = &main_mutex;
-    direttore_opt.mutex_direttore = &manager_mutex;
+    direttore_opt.main_mutex = &main_mutex;
+    direttore_opt.mutex_direttore = &quit_mutex;
     direttore_opt.cond_auth = &auth_cond;
+    direttore_opt.auth_array = auth_array;
+    direttore_opt.num_clienti = config.c_max;
     direttore_opt.casse_tot = config.k_tot;
     direttore_opt.casse_attive = &casse_iniziali;
     direttore_opt.soglia_1 = config.s1;
@@ -130,10 +129,10 @@ int main(int argc, char** argv) {
     /* creazione threads casse */
     unsigned seed = time(NULL);
     for (size_t i = 0; i < config.k_tot; i++) {
-        *(stato_casse[i]) = (i < config.casse_iniziali ? APERTA : CHIUSA);
-        casse_opt[i].stato_cassa = stato_casse[i];
+        stato_casse[i] = (i < config.casse_iniziali ? APERTA : CHIUSA);
+        casse_opt[i].stato_cassa = &stato_casse[i];
         casse_opt[i].coda = code_casse[i];
-        casse_opt[i].mutex = &main_mutex;
+        casse_opt[i].main_mutex = &main_mutex;
         casse_opt[i].cond = &cond_casse[i];
         int t_fisso = rand_r(&seed) % (MAX_TF_CASSA - MIN_TF_CASSA + 1) + MIN_TF_CASSA;
         casse_opt[i].tempo_fisso = t_fisso;
@@ -148,7 +147,8 @@ int main(int argc, char** argv) {
         clienti_opt[i].stato_cliente = ENTRATO;
         clienti_opt[i].mutex_cliente = &client_mutex[i];
         clienti_opt[i].cond_incoda = &cond_incoda[i];
-        clienti_opt[i].mutex = &main_mutex;
+        clienti_opt[i].main_mutex = &main_mutex;
+        clienti_opt[i].authorized = &auth_array[i];
         clienti_opt[i].cond_auth = &auth_cond;
         clienti_opt[i].stato_casse = stato_casse;
         clienti_opt[i].coda_casse = code_casse;
@@ -166,12 +166,12 @@ int main(int argc, char** argv) {
     sleep(5);
     printf("dopo sleep\n");
 
-    if (mutex_lock(&manager_mutex) != 0) {
+    if (mutex_lock(&quit_mutex) != 0) {
         perror("cliente mutex lock 2");
         // gestire errore
     }
     direttore_opt.stato_direttore = CHIUSURA;
-    if (mutex_unlock(&manager_mutex) != 0) {
+    if (mutex_unlock(&quit_mutex) != 0) {
         perror("cliente mutex lock 2");
         // gestire errore
     }

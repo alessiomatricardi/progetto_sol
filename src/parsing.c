@@ -157,5 +157,9 @@ int parse_config(const char* filename, config_t* config) {
         fprintf(stderr, "E deve essere minore di C\n");
         return -1;
     }
+    if (config->casse_iniziali > config->k_tot) {
+        fprintf(stderr, "Il numero di casse inizialmente aperte deve essere minore del numero totale\n");
+        return -1;
+    }
     return 0;
 }
