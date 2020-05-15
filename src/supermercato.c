@@ -57,22 +57,25 @@ int main(int argc, char** argv) {
         printf("Qualcosa è andato storto durante la lettura del file di configurazione.\n");
         exit(EXIT_FAILURE);
     }
-    printf("casse iniziali %d\nt prodotto %d\nt agg clienti %d\n", config.casse_iniziali, config.t_singolo_prodotto, config.t_agg_clienti);
-    printf("t max %d\np max %d\nk max %d\ns1 %d\ns2 %d\nc max %d\ne %d\nlog %s\n", config.t_max, config.p_max, config.k_max, config.s1, config.s2, config.c_max, config.e, config.log_file_name);
+    /*
+     * printf("casse iniziali %d\nt prodotto %d\nt agg clienti %d\n", config.casse_iniziali, config.t_singolo_prodotto, config.t_agg_clienti);
+     * printf("t max %d\np max %d\nk max %d\ns1 %d\ns2 %d\nc max %d\ne %d\nlog %s\n", config.t_max, config.p_max, config.k_tot, config.s1, config.s2, config.c_max, config.e, config.log_file_name);
+    */
 
     // fa tutto
 
     /* strutture dati da utilizzare */
 
     cliente_opt_t clienti_opt[config.c_max];
-    cassa_opt_t casse_opt[config.k_max];
+    cassa_opt_t casse_opt[config.k_tot];
     direttore_opt_t direttore_opt;
-    BQueue_t* code_casse[config.k_max];
+    BQueue_t* code_casse[config.k_tot];
+    cassa_state_t* stato_casse[config.k_tot];
 
     /* thread in gioco nel sistema */
 
     pthread_t th_clienti[config.c_max];
-    pthread_t th_casse[config.k_max];
+    pthread_t th_casse[config.k_tot];
     pthread_t th_direttore;
 
     /* mutex e variabili di condizione in gioco nel sistema */
@@ -81,7 +84,7 @@ int main(int argc, char** argv) {
     pthread_mutex_t client_mutex[config.c_max];
 
     pthread_cond_t auth_cond;
-    pthread_cond_t cond_casse[config.k_max];
+    pthread_cond_t cond_casse[config.k_tot];
     pthread_cond_t cond_incoda[config.c_max];
 
     /* inizializzazione mutex e variabili di condizione */
@@ -93,17 +96,23 @@ int main(int argc, char** argv) {
     }
 
     pthread_cond_init(&auth_cond, NULL);
-    for (size_t i = 0; i < config.k_max; i++) {
+    for (size_t i = 0; i < config.k_tot; i++) {
         pthread_cond_init(&cond_casse[i], NULL);
     }
     for (size_t i = 0; i < config.c_max; i++) {
         pthread_cond_init(&cond_incoda[i], NULL);
     }
 
-    /* inizializzazione code */
-    for (size_t i = 0; i < config.k_max; i++) {
+    /* inizializzazione code e stato */
+    for (size_t i = 0; i < config.k_tot; i++) {
         code_casse[i] = init_BQueue(config.c_max);
+        stato_casse[i] = (cassa_state_t*)malloc(sizeof(cassa_state_t));
+        if(CHECK_NULL(stato_casse[i])) {
+            perror("stato casse");
+        }
     }
+
+    int casse_iniziali = config.casse_iniziali;
 
     /* creazione thread direttore */
     direttore_opt.stato_direttore = ATTIVO;
@@ -111,7 +120,8 @@ int main(int argc, char** argv) {
     direttore_opt.mutex = &main_mutex;
     direttore_opt.mutex_direttore = &manager_mutex;
     direttore_opt.cond_auth = &auth_cond;
-    direttore_opt.k_max = config.k_max;
+    direttore_opt.casse_tot = config.k_tot;
+    direttore_opt.casse_attive = &casse_iniziali;
     direttore_opt.soglia_1 = config.s1;
     direttore_opt.soglia_2 = config.s2;
     /* attributi per ora nulli */
@@ -119,8 +129,9 @@ int main(int argc, char** argv) {
 
     /* creazione threads casse */
     unsigned seed = time(NULL);
-    for (size_t i = 0; i < config.k_max; i++) {
-        casse_opt[i].stato_cassa = (i < config.casse_iniziali ? APERTA : CHIUSA);
+    for (size_t i = 0; i < config.k_tot; i++) {
+        *(stato_casse[i]) = (i < config.casse_iniziali ? APERTA : CHIUSA);
+        casse_opt[i].stato_cassa = stato_casse[i];
         casse_opt[i].coda = code_casse[i];
         casse_opt[i].mutex = &main_mutex;
         casse_opt[i].cond = &cond_casse[i];
@@ -139,11 +150,15 @@ int main(int argc, char** argv) {
         clienti_opt[i].cond_incoda = &cond_incoda[i];
         clienti_opt[i].mutex = &main_mutex;
         clienti_opt[i].cond_auth = &auth_cond;
+        clienti_opt[i].stato_casse = stato_casse;
         clienti_opt[i].coda_casse = code_casse;
+        clienti_opt[i].casse_tot = config.k_tot;
+        clienti_opt[i].casse_attive = &casse_iniziali;
         int n_prod = rand_r(&seed) % (config.p_max + 1);
         int t_acquisti = rand_r(&seed) % (config.t_max - MIN_T_ACQUISTI + 1) + MIN_T_ACQUISTI;
         clienti_opt[i].num_prodotti = n_prod;
         clienti_opt[i].tempo_acquisti = t_acquisti;
+        clienti_opt[i].seed = seed;
 
         pthread_create(&th_clienti[i], NULL, cliente, &clienti_opt[i]);
     }
@@ -165,7 +180,7 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < config.c_max; i++) {
         pthread_join(th_clienti[i], NULL);
     }
-    for (size_t i = 0; i < config.k_max; i++) {
+    for (size_t i = 0; i < config.k_tot; i++) {
         pthread_join(th_casse[i], NULL);
     }
     pthread_join(th_direttore, NULL);

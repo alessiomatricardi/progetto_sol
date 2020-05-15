@@ -27,7 +27,7 @@ typedef struct _config {
     int t_agg_clienti;
     int t_max;
     int p_max;
-    int k_max;
+    int k_tot;
     int s1;
     int s2;
     int c_max;

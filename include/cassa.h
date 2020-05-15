@@ -15,7 +15,7 @@ typedef enum _cassa_state {
 } cassa_state_t;
 
 typedef struct _cassa {
-    cassa_state_t stato_cassa;
+    cassa_state_t* stato_cassa;
     BQueue_t* coda;
     pthread_mutex_t* mutex;
     pthread_cond_t* cond;

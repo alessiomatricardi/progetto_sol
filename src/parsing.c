@@ -138,7 +138,7 @@ int parse_config(const char* filename, config_t* config) {
     CHECK_AND_FREE(set_value(&config->t_agg_clienti, hash_table, T_AGG_NUM_CLIENTI, false), -1, hash_table);
     CHECK_AND_FREE(set_value(&config->t_max, hash_table, MAX_T_ACQUISTI, false), -1, hash_table);
     CHECK_AND_FREE(set_value(&config->p_max, hash_table, MAX_NUM_PRODOTTI, false), -1, hash_table);
-    CHECK_AND_FREE(set_value(&config->k_max, hash_table, MAX_CASSE, false), -1, hash_table);
+    CHECK_AND_FREE(set_value(&config->k_tot, hash_table, MAX_CASSE, false), -1, hash_table);
     CHECK_AND_FREE(set_value(&config->s1, hash_table, SOGLIA1, false), -1, hash_table);
     CHECK_AND_FREE(set_value(&config->s2, hash_table, SOGLIA2, false), -1, hash_table);
     CHECK_AND_FREE(set_value(&config->c_max, hash_table, MAX_NUM_CLIENTI, false), -1, hash_table);

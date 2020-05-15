@@ -33,8 +33,8 @@ void autorizza_uscita(pthread_mutex_t* mtx, pthread_cond_t* cond);
             perror("cliente mutex lock 2");
             // gestire errore
         }
-        for(size_t i = 0; i < direttore->k_max; i++) {
-            direttore->casse[i].stato_cassa = CHIUSURA_SUP_CASSA;
+        for(size_t i = 0; i < direttore->casse_tot; i++) {
+            *(direttore->casse[i].stato_cassa) = CHIUSURA_SUP_CASSA;
             while(push(direttore->casse[i].coda, END_OF_SERVICE) != 0) {
                 perror("push");
                 // gestione errore

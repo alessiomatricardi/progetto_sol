@@ -11,7 +11,7 @@ void* cassa(void* arg) {
         if (mutex_lock(cassa->mutex) != 0) {
             perror("mutex cassa");
         }
-        while ((stato = cassa->stato_cassa) == CHIUSA) {
+        while ((stato = *(cassa->stato_cassa)) == CHIUSA) {
             if (cond_wait(cassa->cond, cassa->mutex) != 0) {
                 perror("cond");
             }

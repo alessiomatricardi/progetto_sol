@@ -18,9 +18,10 @@ typedef struct _direttore {
     cassa_opt_t* casse;
     pthread_mutex_t* mutex;
     pthread_cond_t* cond_auth;
-    size_t k_max;
-    size_t soglia_1;
-    size_t soglia_2;
+    int casse_tot;
+    int* casse_attive;
+    int soglia_1;
+    int soglia_2;
 } direttore_opt_t;
 
 void* direttore(void* arg);
