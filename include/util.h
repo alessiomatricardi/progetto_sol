@@ -1,10 +1,7 @@
 /* utility */
 #ifndef UTIL_H
 #define UTIL_H
-#include <errno.h>
 #include <pthread.h>
-#include <stdlib.h>
-#include <time.h>
 
 #define ERR(...)                  \
     fprintf(stderr, __VA_ARGS__); \
@@ -19,70 +16,52 @@
  * @return 0 se la chiamata termina con successo
  * @return -1 se il valore immesso è < 0
 */
-int msleep(long msec) {
-    struct timespec ts;
-    int res;
+int msleep(long msec);
 
-    if (msec < 0) {
-        errno = EINVAL;
-        return -1;
-    }
+/**
+ * lock a mutex
+ * 
+ * @param mutex mutex to lock
+ * @return 0 if success
+ * @return -1 if failure, sets errno
+*/
+int mutex_lock(pthread_mutex_t * mutex);
 
-    ts.tv_sec = msec / 1000;
-    ts.tv_nsec = (msec % 1000) * 1000000;
+/**
+ * unlock a mutex
+ * 
+ * @param mutex mutex to unlock
+ * @return 0 if success
+ * @return -1 if failure, sets errno
+*/
+int mutex_unlock(pthread_mutex_t * mutex);
 
-    do {
-        res = nanosleep(&ts, &ts);
-    } while (res && errno == EINTR);
+/**
+ * rilascia mutex e mette il thread in pausa
+ * 
+ * @param cond condition variable
+ * @param mutex mutex
+ * @return 0 if success
+ * @return -1 if failure, sets errno
+*/
+int cond_wait(pthread_cond_t * cond, pthread_mutex_t * mutex);
 
-    return res;
-}
+/**
+ * riattiva un thread che aveva fatto una wait su cond
+ * 
+ * @param cond condition variable
+ * @return 0 if success
+ * @return -1 if failure, sets errno
+*/
+int cond_signal(pthread_cond_t* cond);
 
-/* funzioni che settano errno in caso di fallimento di operazioni su mutex e/o var. di condizione */
-
-int mutex_lock(pthread_mutex_t * mutex) {
-    int err = 0;
-    if((err = pthread_mutex_lock(mutex)) != 0) {
-        errno = err;
-        return -1;
-    }
-    return 0;
-}
-
-int mutex_unlock(pthread_mutex_t * mutex) {
-    int err = 0;
-    if ((err = pthread_mutex_unlock(mutex)) != 0) {
-        errno = err;
-        return -1;
-    }
-    return 0;
-}
-
-int cond_wait(pthread_cond_t * cond, pthread_mutex_t * mutex) {
-    int err = 0;
-    if ((err = pthread_cond_wait(cond, mutex)) != 0) {
-        errno = err;
-        return -1;
-    }
-    return 0;
-}
-
-int cond_signal(pthread_cond_t* cond) {
-    int err = 0;
-    if ((err = pthread_cond_signal(cond)) != 0) {
-        errno = err;
-        return -1;
-    }
-    return 0;
-}
-
-int cond_broadcast(pthread_cond_t* cond) {
-    int err = 0;
-    if ((err = pthread_cond_broadcast(cond)) != 0) {
-        errno = err;
-        return -1;
-    }
-    return 0;
-}
+/**
+ * riattiva tutti i thread che avevano fatto una wait su cond
+ * 
+ * @param cond condition variable
+ * @return 0 if success
+ * @return -1 if failure, sets errno
+*/
+int cond_broadcast(pthread_cond_t* cond);
 
 #endif /* UTIL_H */

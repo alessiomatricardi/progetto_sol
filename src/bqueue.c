@@ -3,12 +3,20 @@
 #include <pthread.h>
 #include <bqueue.h>
 #include <string.h>
+#include <util.h>
+
+struct bqueue_s {
+    void** buffer;             /* array di puntatori a void */
+    size_t max_size;           /* numero massimo di elementi nel buffer, da definire nell'inizializzazione */
+    size_t head;               /* testa della coda, per le estrazioni */
+    size_t tail;               /* fine della coda, per gli inserimenti */
+    size_t count;              /* numero di elementi attualmente presenti nel buffer */
+    pthread_mutex_t mutex;     /* variabile di mutua esclusione sulla coda */
+    pthread_cond_t cond_empty; /* variabile di condizione per la coda vuota */
+    pthread_cond_t cond_full;  /* variabile di condizione per la coda piena */
+};
 
 BQueue_t* init_BQueue(size_t num) {
-    if(num <= 0) {
-        errno = EINVAL;
-        return NULL;
-    }
     BQueue_t* q = (BQueue_t*)malloc(sizeof(BQueue_t));
     if (CHECK_NULL(q)) {
         errno = EINVAL;
@@ -82,7 +90,7 @@ int push(BQueue_t* q, void* data) {
     }
     q->buffer[q->tail] = data;
     q->tail = (q->tail + 1) % q->max_size;
-    (q->count)++;
+    q->count += 1;
     //printf("prodotto %d\n",*(int*)data);
     if(cond_signal(&(q->cond_empty)) == -1) {
         return -1;
@@ -108,7 +116,7 @@ void* pop(BQueue_t* q) {
     }
     void* value = q->buffer[q->head];
     q->head = (q->head + 1) % q->max_size;
-    (q->count)--;
+    q->count -= 1;
     if (cond_signal(&(q->cond_full)) == -1) {
         return NULL;
     }
@@ -118,13 +126,13 @@ void* pop(BQueue_t* q) {
     return value;
 }
 
-int getSize(BQueue_t q) {
+int get_size(BQueue_t *q) {
     int length = 0;
-    if (mutex_lock(&(q.mutex)) == -1) {
+    if (mutex_lock(&(q->mutex)) == -1) {
         return -1;
     }
-    length = q.count;
-    if (mutex_unlock(&(q.mutex)) == -1) {
+    length = q->count;
+    if (mutex_unlock(&(q->mutex)) == -1) {
         return -1;
     }
     return length;

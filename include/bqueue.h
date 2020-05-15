@@ -13,16 +13,8 @@
 #include <pthread.h>
 #include <util.h>
 
-typedef struct bqueue_s {
-    void** buffer; /* array di puntatori a void */
-    size_t max_size; /* numero massimo di elementi nel buffer, da definire nell'inizializzazione */
-    size_t head; /* testa della coda, per le estrazioni */
-    size_t tail; /* fine della coda, per gli inserimenti */
-    unsigned long count; /* numero di elementi attualmente presenti nel buffer */
-    pthread_mutex_t mutex; /* variabile di mutua esclusione sulla coda */
-    pthread_cond_t cond_empty; /* variabile di condizione per la coda vuota */
-    pthread_cond_t cond_full; /* variabile di condizione per la coda piena */
-} BQueue_t;
+struct bqueue_s;
+typedef struct bqueue_s BQueue_t;
 
 /**
  * alloca e inizializza la coda
@@ -70,6 +62,6 @@ void* pop(BQueue_t *q);
  * @return numero di elementi nella coda
  * @return -1 se fallimento (errore con mutex)
 */
-int getSize(BQueue_t q);
+int get_size(BQueue_t *q);
 
 #endif /* B_QUEUE_H */

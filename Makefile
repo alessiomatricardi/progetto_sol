@@ -1,9 +1,10 @@
 # Makefile
 # Alessio Matricardi
+# LAST UPDATE 15/05/20
 
 SRCDIR = ./src
 LIBDIR = ./lib
-BINDIR = ./bin
+BINDIR = .
 INCDIR = ./include
 
 CC 			= gcc
@@ -22,8 +23,7 @@ EXE			= $(BINDIR)/supermercato
 $(SRCDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) -c -o $@ $<
 
-#da completare
-$(EXE): $(SRCDIR)/supermercato.c $(LIBDIR)/libstructure.a $(SRCDIR)/parsing.o
+$(EXE): $(SRCDIR)/supermercato.c $(LIBDIR)/libstructure.a $(SRCDIR)/cliente.o $(SRCDIR)/cassa.o $(SRCDIR)/direttore.o $(SRCDIR)/parsing.o $(SRCDIR)/util.o 
 	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 $(LIBDIR)/libstructure.a: $(SRCDIR)/bqueue.o $(SRCDIR)/icl_hash.o
