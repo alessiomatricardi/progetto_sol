@@ -6,7 +6,7 @@ void autorizza_uscita(pthread_mutex_t* mtx, pthread_cond_t* cond);
 
     void* direttore(void* arg) {
     direttore_opt_t* direttore = (direttore_opt_t*)arg;
-    direttore_state_t stato = 1;
+    direttore_state_t stato;
     while(1) {
         // controlla stato
         if (mutex_lock(direttore->mutex_direttore) != 0) {
@@ -34,7 +34,7 @@ void autorizza_uscita(pthread_mutex_t* mtx, pthread_cond_t* cond);
             // gestire errore
         }
         for(size_t i = 0; i < direttore->k_max; i++) {
-            direttore->casse[i].stato_cassa = CHIUSURA_CASSA;
+            direttore->casse[i].stato_cassa = CHIUSURA_SUP_CASSA;
             while(push(direttore->casse[i].coda, END_OF_SERVICE) != 0) {
                 perror("push");
                 // gestione errore

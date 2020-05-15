@@ -10,8 +10,8 @@
 typedef enum _cassa_state {
     APERTA,
     CHIUSA,
-    CHIUSURA_CASSA,
-    CHIUSURA_IMMEDIATA_CASSA,
+    CHIUSURA_SUP_CASSA,
+    CHIUSURA_IMM_SUP_CASSA,
 } cassa_state_t;
 
 typedef struct _cassa {

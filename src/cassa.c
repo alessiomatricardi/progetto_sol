@@ -6,21 +6,33 @@
 void* cassa(void* arg) {
     cassa_opt_t* cassa = (cassa_opt_t*)arg;
     int t_notifica = cassa->intervallo_notifica;
+    cassa_state_t stato;
     while (1) {
         if (mutex_lock(cassa->mutex) != 0) {
             perror("mutex cassa");
         }
-        while (cassa->stato_cassa == CHIUSA) {
+        while ((stato = cassa->stato_cassa) == CHIUSA) {
             if (cond_wait(cassa->cond, cassa->mutex) != 0) {
                 perror("cond");
             }
         }
-        if (cassa->stato_cassa != APERTA) break;
+        if (stato != APERTA) {
+            if (mutex_unlock(cassa->mutex) != 0) {
+                perror("mutex cassa");
+            }
+            break;
+        }
         if (mutex_unlock(cassa->mutex) != 0) {
             perror("mutex cassa");
         }
         void* temp_cliente = pop(cassa->coda);
-        if (temp_cliente == END_OF_SERVICE) break;
+        /* la cassa era aperta ma aspettava cliente in coda
+         * -> non ha clienti da servire o da invitare ad uscire
+         * -> esce senza far nulla
+        */
+        if (temp_cliente == END_OF_SERVICE) {
+            pthread_exit((void*)0);
+        }
         cliente_opt_t* cliente = (cliente_opt_t*)temp_cliente;
 
         int t_servizio = cassa->tempo_fisso + cassa->tempo_prodotto * cliente->num_prodotti;
@@ -49,16 +61,26 @@ void* cassa(void* arg) {
             perror("mutex cassa");
         }
     }
-    if (cassa->stato_cassa == CHIUSURA_CASSA) {
+    if (stato == CHIUSURA_SUP_CASSA) {
         // FLUSH CLIENTI servili tutti
+        void* tmp_cliente;
         printf("Ricevuta chiusura\n");
         while(get_size(cassa->coda) > 0) {
-            pop(cassa->coda);
+            tmp_cliente = pop(cassa->coda);
+            if(tmp_cliente == END_OF_SERVICE) break;
+            cliente_opt_t* cliente = (cliente_opt_t*)tmp_cliente;
+            if (mutex_lock(cliente->mutex_cliente) != 0) {
+                perror("mutex cassa");
+            }
+            cliente->stato_cliente = USCITA_SEGNALE;
+            if (cond_signal(cliente->cond_incoda) != 0) {
+                perror("signal client");
+            }
+            if (mutex_unlock(cliente->mutex_cliente) != 0) {
+                perror("mutex cassa");
+            }
         }
     } else { /* stato = CHIUSURA_IMMEDIATA */
-    }
-    if (mutex_unlock(cassa->mutex) != 0) {
-        perror("mutex cassa");
     }
     pthread_exit((void*)0);
 }

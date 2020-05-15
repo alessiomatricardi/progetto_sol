@@ -42,6 +42,10 @@ void* cliente(void* arg) {
                 }
             }
             if (cliente->stato_cliente != CAMBIA_CASSA) {
+                if (mutex_unlock(cliente->mutex_cliente) != 0) {
+                    perror("cliente mutex unlock 2");
+                    // gestire errore
+                }
                 break;
             }
             if (mutex_unlock(cliente->mutex_cliente) != 0) {
@@ -56,6 +60,7 @@ void* cliente(void* arg) {
             perror("cliente mutex lock 2");
             // gestire errore
         }
+        // needs while
         if (cond_wait(cliente->cond_auth, cliente->mutex) != 0) {
             perror("cliente cond wait 2");
             // GESTIRE ERRORE
@@ -64,10 +69,6 @@ void* cliente(void* arg) {
             perror("cliente mutex lock 2");
             // gestire errore
         }
-    }
-    if (mutex_unlock(cliente->mutex_cliente) != 0) {
-        perror("cliente mutex unlock 2");
-        // gestire errore
     }
     printf("cliente\n");
     // devo dire al supermercato che sono uscito
