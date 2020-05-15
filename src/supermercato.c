@@ -9,6 +9,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <util.h>
+#include <signal.h>
+#include <signal_handler.h>
 
 /* macros */
 
@@ -17,7 +19,7 @@
 #define ACCEPTABLE_OPTIONS ":c:"
 
 /* funzione di lettura dei parametri passati da terminale */
-int set_config_filename(char* config_filename, int argc, char** argv) {
+static int set_config_filename(char* config_filename, int argc, char** argv) {
     int opt;
     if ((opt = getopt(argc, argv, ACCEPTABLE_OPTIONS)) != -1) {
         switch (opt) {
@@ -36,6 +38,16 @@ int set_config_filename(char* config_filename, int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
+    /* da vedere */
+    int sig, error = 0;
+    sigset_t sigmask;
+    error = sigemptyset(&sigmask);
+    error |= sigaddset(&sigmask, SIGHUP);
+    error |= sigaddset(&sigmask, SIGQUIT);
+    error |= sigaddset(&sigmask, SIGUSR1);
+    pthread_sigmask(SIG_SETMASK, &sigmask, NULL);
+    /* da vedere */
+
     if (argc != 3 && argc != 1) {
         printf("Usage: %s -c <config file>\n", argv[0]);
         printf("or use default: %s [-c config.txt]\n", argv[0]);
@@ -77,10 +89,12 @@ int main(int argc, char** argv) {
     pthread_t th_clienti[config.c_max];
     pthread_t th_casse[config.k_tot];
     pthread_t th_direttore;
+    pthread_t th_signal_handler;
 
     /* mutex e variabili di condizione in gioco nel sistema */
     pthread_mutex_t main_mutex;
     pthread_mutex_t quit_mutex;
+    pthread_mutex_t exit_mutex;
     pthread_mutex_t client_mutex[config.c_max];
 
     pthread_cond_t auth_cond;
@@ -91,6 +105,7 @@ int main(int argc, char** argv) {
     /* attributi per ora nulli */
     pthread_mutex_init(&main_mutex, NULL);
     pthread_mutex_init(&quit_mutex, NULL);
+    pthread_mutex_init(&exit_mutex, NULL);
     for (size_t i = 0; i < config.c_max; i++) {
         pthread_mutex_init(&client_mutex[i], NULL);
     }
@@ -108,19 +123,31 @@ int main(int argc, char** argv) {
         code_casse[i] = init_BQueue(config.c_max);
     }
 
-    int casse_iniziali = config.casse_iniziali;
+    int casse_attive = config.casse_iniziali;
     bool auth_array[config.c_max];
+    bool exit_array[config.c_max];
+    for(size_t i = 0; i < config.c_max; i++) {
+        auth_array[i] = exit_array[i] = false;
+    }
+    int exited_clients = 0;
+    int queue_notify[config.k_tot];
+    for (size_t i = 0; i < config.k_tot; i++) {
+        queue_notify[i] = 0;
+    }
+
+    pthread_create(&th_signal_handler, NULL, signal_handler, NULL);
 
     /* creazione thread direttore */
     direttore_opt.stato_direttore = ATTIVO;
     direttore_opt.casse = casse_opt;
     direttore_opt.main_mutex = &main_mutex;
-    direttore_opt.mutex_direttore = &quit_mutex;
-    direttore_opt.cond_auth = &auth_cond;
+    direttore_opt.quit_mutex = &quit_mutex;
+    direttore_opt.auth_cond = &auth_cond;
     direttore_opt.auth_array = auth_array;
     direttore_opt.num_clienti = config.c_max;
     direttore_opt.casse_tot = config.k_tot;
-    direttore_opt.casse_attive = &casse_iniziali;
+    direttore_opt.casse_attive = &casse_attive;
+    direttore_opt.queue_notify = queue_notify;
     direttore_opt.soglia_1 = config.s1;
     direttore_opt.soglia_2 = config.s2;
     /* attributi per ora nulli */
@@ -134,6 +161,7 @@ int main(int argc, char** argv) {
         casse_opt[i].coda = code_casse[i];
         casse_opt[i].main_mutex = &main_mutex;
         casse_opt[i].cond = &cond_casse[i];
+        casse_opt[i].queue_size = &queue_notify[i];
         int t_fisso = rand_r(&seed) % (MAX_TF_CASSA - MIN_TF_CASSA + 1) + MIN_TF_CASSA;
         casse_opt[i].tempo_fisso = t_fisso;
         casse_opt[i].tempo_prodotto = config.t_singolo_prodotto;
@@ -149,11 +177,14 @@ int main(int argc, char** argv) {
         clienti_opt[i].cond_incoda = &cond_incoda[i];
         clienti_opt[i].main_mutex = &main_mutex;
         clienti_opt[i].authorized = &auth_array[i];
-        clienti_opt[i].cond_auth = &auth_cond;
+        clienti_opt[i].auth_cond = &auth_cond;
         clienti_opt[i].stato_casse = stato_casse;
         clienti_opt[i].coda_casse = code_casse;
+        clienti_opt[i].casse_attive = &casse_attive;
+        clienti_opt[i].exit_mutex = &exit_mutex;
+        clienti_opt[i].is_exited = &exit_array[i];
+        clienti_opt[i].num_exited = &exited_clients;
         clienti_opt[i].casse_tot = config.k_tot;
-        clienti_opt[i].casse_attive = &casse_iniziali;
         int n_prod = rand_r(&seed) % (config.p_max + 1);
         int t_acquisti = rand_r(&seed) % (config.t_max - MIN_T_ACQUISTI + 1) + MIN_T_ACQUISTI;
         clienti_opt[i].num_prodotti = n_prod;
@@ -163,8 +194,11 @@ int main(int argc, char** argv) {
         pthread_create(&th_clienti[i], NULL, cliente, &clienti_opt[i]);
     }
     /* chiusura artificiale */
-    sleep(5);
+    sleep(25);
     printf("dopo sleep\n");
+    pthread_kill(th_signal_handler,SIGHUP);
+    pthread_kill(th_signal_handler, SIGQUIT);
+    pthread_kill(th_signal_handler, SIGUSR1);
 
     if (mutex_lock(&quit_mutex) != 0) {
         perror("cliente mutex lock 2");
@@ -176,6 +210,19 @@ int main(int argc, char** argv) {
         // gestire errore
     }
     /* chiusura artificiale */
+
+    /*
+    if (mutex_lock(&exit_mutex) != 0) {
+        perror("cliente mutex lock 2");
+        // gestire errore
+    }
+    if(exited_clients >= config.e) {
+        // ricicla threads
+    }
+    if (mutex_unlock(&exit_mutex) != 0) {
+        perror("cliente mutex lock 2");
+        // gestire errore
+    }*/
 
     for (size_t i = 0; i < config.c_max; i++) {
         pthread_join(th_clienti[i], NULL);

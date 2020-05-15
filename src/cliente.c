@@ -2,15 +2,26 @@
 #include <cliente.h>
 #include <time.h>
 #include <util.h>
+#include <signal.h>
 
 #define CASSA_NOT_FOUND -1
 
-void vai_in_coda(cliente_opt_t* cliente, int * scelta, unsigned * seed);
-void attendi_turno(cliente_opt_t* cliente);
-void uscita_senza_acquisti(cliente_opt_t* cliente);
-void avverti_supermercato(cliente_opt_t* cliente);
+static void vai_in_coda(cliente_opt_t* cliente, int * scelta, unsigned * seed);
+static void attendi_turno(cliente_opt_t* cliente);
+static void uscita_senza_acquisti(cliente_opt_t* cliente);
+static void avverti_supermercato(cliente_opt_t* cliente);
 
 void* cliente(void* arg) {
+    /* da vedere */
+    int sig, error = 0;
+    sigset_t sigmask;
+    error = sigemptyset(&sigmask);
+    error |= sigaddset(&sigmask, SIGHUP);
+    error |= sigaddset(&sigmask, SIGQUIT);
+    error |= sigaddset(&sigmask, SIGUSR1);
+    pthread_sigmask(SIG_SETMASK, &sigmask, NULL);
+    /* da vedere */
+
     cliente_opt_t* cliente = (cliente_opt_t*)arg;
     cliente->stato_cliente = ENTRATO;
 
@@ -25,7 +36,6 @@ void* cliente(void* arg) {
         while (1) {
             // scegli cassa tra quelle attive
             vai_in_coda(cliente, &cassa_scelta, &seed);
-            printf("il cliente ha scelto la cassa %d\n",cassa_scelta);
             
             if(cassa_scelta == CASSA_NOT_FOUND) {
                 *stato = USCITA_SEGNALE;
@@ -46,13 +56,13 @@ void* cliente(void* arg) {
     }
     printf("cliente esce\n");
     // devo dire al supermercato che sono uscito
-
+    avverti_supermercato(cliente);
     // uscire
     //pthread_exit((void*)stato);
     pthread_exit((void*)0);
 }
 
-void vai_in_coda(cliente_opt_t* cliente, int * scelta, unsigned * seed) {
+static void vai_in_coda(cliente_opt_t* cliente, int * scelta, unsigned * seed) {
     if (mutex_lock(cliente->main_mutex) != 0) {
         perror("cliente mutex lock 2");
         // gestire errore
@@ -80,7 +90,7 @@ void vai_in_coda(cliente_opt_t* cliente, int * scelta, unsigned * seed) {
     }
 }
 
-void attendi_turno(cliente_opt_t* cliente) {
+static void attendi_turno(cliente_opt_t* cliente) {
     if (mutex_lock(cliente->mutex_cliente) != 0) {
         perror("cliente mutex lock 2");
         // gestire errore
@@ -97,7 +107,7 @@ void attendi_turno(cliente_opt_t* cliente) {
     }
 }
 
-void uscita_senza_acquisti(cliente_opt_t* cliente) {
+static void uscita_senza_acquisti(cliente_opt_t* cliente) {
     printf("chiedo al direttore\n");
     fflush(stdout);
     // fai la wait
@@ -107,12 +117,25 @@ void uscita_senza_acquisti(cliente_opt_t* cliente) {
     }
     *(cliente->authorized) = false;
     while (!(*(cliente->authorized))){
-        if (cond_wait(cliente->cond_auth, cliente->main_mutex) != 0) {
+        if (cond_wait(cliente->auth_cond, cliente->main_mutex) != 0) {
             perror("cliente cond wait 2");
             // GESTIRE ERRORE
         }
     }
     if (mutex_unlock(cliente->main_mutex) != 0) {
+        perror("cliente mutex lock 2");
+        // gestire errore
+    }
+}
+
+static void avverti_supermercato(cliente_opt_t* cliente) {
+    if (mutex_lock(cliente->exit_mutex) != 0) {
+        perror("cliente mutex lock 2");
+        // gestire errore
+    }
+    *(cliente->is_exited) = true;
+    *(cliente->num_exited) += 1;
+    if (mutex_unlock(cliente->exit_mutex) != 0) {
         perror("cliente mutex lock 2");
         // gestire errore
     }

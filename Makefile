@@ -1,6 +1,6 @@
 # Makefile
 # Alessio Matricardi
-# LAST UPDATE 15/05/20
+# LAST UPDATE 16/05/20
 
 SRCDIR = ./src
 LIBDIR = ./lib
@@ -23,7 +23,7 @@ EXE			= $(BINDIR)/supermercato
 $(SRCDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) -c -o $@ $<
 
-$(EXE): $(SRCDIR)/supermercato.c $(LIBDIR)/libstructure.a $(SRCDIR)/cliente.o $(SRCDIR)/cassa.o $(SRCDIR)/direttore.o $(SRCDIR)/parsing.o $(SRCDIR)/util.o 
+$(EXE): $(SRCDIR)/supermercato.c $(LIBDIR)/libstructure.a $(SRCDIR)/signal_handler.o $(SRCDIR)/cliente.o $(SRCDIR)/cassa.o $(SRCDIR)/direttore.o $(SRCDIR)/parsing.o $(SRCDIR)/util.o 
 	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 $(LIBDIR)/libstructure.a: $(SRCDIR)/bqueue.o $(SRCDIR)/icl_hash.o

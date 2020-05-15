@@ -1,8 +1,8 @@
 #ifndef CLIENTE_H
 #define CLIENTE_H
+#include <bool.h>
 #include <bqueue.h>
 #include <cassa.h>
-#include <bool.h>
 
 #define MIN_T_ACQUISTI 10
 
@@ -22,13 +22,15 @@ typedef struct _cliente {
     pthread_cond_t* cond_incoda;
     pthread_mutex_t* main_mutex;
     bool* authorized;
-    pthread_cond_t* cond_auth;
+    pthread_cond_t* auth_cond;
     cassa_state_t* stato_casse;
     BQueue_t** coda_casse; /* insieme delle code delle casse */
-    int casse_tot;
     int* casse_attive;
+    pthread_mutex_t* exit_mutex;
+    bool* is_exited;
+    int* num_exited;
+    int casse_tot;
     /* variabili condivise in sola lettura */
-    //int thid;         /* thread del cliente */
     int num_prodotti; /* numero dei prodotti acquistati dal cliente, tra 0 e P>0 */
     /* variabili non condivise */
     int tempo_acquisti; /* tempo impiegato per gli acquisti, tra 10 e T>10 millisecondi */

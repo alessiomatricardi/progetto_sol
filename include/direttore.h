@@ -12,13 +12,16 @@ typedef enum _direttore_state {
     CHIUSURA_IMMEDIATA,
 } direttore_state_t;
 
+typedef direttore_state_t supermercato_state_t;
+
 typedef struct _direttore {
     direttore_state_t stato_direttore;
-    pthread_mutex_t* mutex_direttore;
+    pthread_mutex_t* quit_mutex;
     cassa_opt_t* casse;
     pthread_mutex_t* main_mutex;
-    pthread_cond_t* cond_auth;
+    pthread_cond_t* auth_cond;
     bool* auth_array;
+    int* queue_notify;
     int num_clienti;
     int casse_tot;
     int* casse_attive;

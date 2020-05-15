@@ -2,8 +2,21 @@
 #include <cassa.h>
 #include <cliente.h>
 #include <util.h>
+#include <signal.h>
+
+static void invia_notifica(cassa_opt_t* cassa);
 
 void* cassa(void* arg) {
+    /* da vedere */
+    int sig, error = 0;
+    sigset_t sigmask;
+    error = sigemptyset(&sigmask);
+    error |= sigaddset(&sigmask, SIGHUP);
+    error |= sigaddset(&sigmask, SIGQUIT);
+    error |= sigaddset(&sigmask, SIGUSR1);
+    pthread_sigmask(SIG_SETMASK, &sigmask, NULL);
+    /* da vedere */
+
     cassa_opt_t* cassa = (cassa_opt_t*)arg;
     int t_notifica = cassa->intervallo_notifica;
     cassa_state_t stato;
@@ -40,6 +53,7 @@ void* cassa(void* arg) {
             while (t_servizio >= t_notifica) {
                 msleep(t_notifica);
                 // invia notifica
+                invia_notifica(cassa);
                 t_servizio -= t_notifica;
                 t_notifica = cassa->intervallo_notifica;
             }
@@ -83,4 +97,17 @@ void* cassa(void* arg) {
     } else { /* stato = CHIUSURA_IMMEDIATA */
     }
     pthread_exit((void*)0);
+}
+
+static void invia_notifica(cassa_opt_t* cassa) {
+    int size = get_size(cassa->coda);
+    if(size == -1) {
+    }
+    if (mutex_lock(cassa->main_mutex) != 0) {
+        perror("mutex cassa");
+    }
+    *(cassa->queue_size) = size;
+    if (mutex_unlock(cassa->main_mutex) != 0) {
+        perror("mutex cassa");
+    }
 }
