@@ -185,7 +185,7 @@ int main(int argc, char** argv) {
         clienti_opt[i].mutex_cliente = &client_mutex[i];
         clienti_opt[i].cond_incoda = &cond_incoda[i];
         clienti_opt[i].main_mutex = &main_mutex;
-        clienti_opt[i].authorized = &auth_array[i];
+        clienti_opt[i].is_authorized = &auth_array[i];
         clienti_opt[i].auth_cond = &auth_cond;
         clienti_opt[i].stato_casse = stato_casse;
         clienti_opt[i].coda_casse = code_casse;
