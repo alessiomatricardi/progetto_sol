@@ -41,16 +41,16 @@ static int set_config_filename(char* config_filename, int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
-    /* da vedere */
-    int sig, error = 0;
+    /* maschera segnali */
+    int error = 0;
     sigset_t sigmask;
     error = sigemptyset(&sigmask);
     error |= sigaddset(&sigmask, SIGHUP);
     error |= sigaddset(&sigmask, SIGQUIT);
     error |= sigaddset(&sigmask, SIGUSR1);
     pthread_sigmask(SIG_SETMASK, &sigmask, NULL);
+    /* salva id del processo */
     pid = getpid();
-    /* da vedere */
 
     if (argc != 3 && argc != 1) {
         printf("Usage: %s -c <config file>\n", argv[0]);
@@ -170,7 +170,7 @@ int main(int argc, char** argv) {
         casse_opt[i].coda = code_casse[i];
         casse_opt[i].main_mutex = &main_mutex;
         casse_opt[i].cond = &cond_casse[i];
-        casse_opt[i].queue_size = &queue_notify[i];
+        casse_opt[i].queue_size_notify = &queue_notify[i];
         int t_fisso = rand_r(&seed) % (MAX_TF_CASSA - MIN_TF_CASSA + 1) + MIN_TF_CASSA;
         casse_opt[i].tempo_fisso = t_fisso;
         casse_opt[i].tempo_prodotto = config.t_singolo_prodotto;
@@ -202,6 +202,9 @@ int main(int argc, char** argv) {
 
         pthread_create(&th_clienti[i], NULL, cliente, &clienti_opt[i]);
     }
+
+    sleep(3);
+    kill(pid, SIGQUIT);
 
     while(1) {
         if (mutex_lock(&quit_mutex) != 0) {

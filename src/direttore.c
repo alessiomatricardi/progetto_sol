@@ -10,15 +10,14 @@ extern pid_t pid;
 static void autorizza_uscita(bool* auth_array, int num_clienti, pthread_mutex_t* mtx, pthread_cond_t* cond);
 
 void* direttore(void* arg) {
-    /* da vedere */
-    int sig, error = 0;
+    /* maschera segnali */
+    int error = 0;
     sigset_t sigmask;
     error = sigemptyset(&sigmask);
     error |= sigaddset(&sigmask, SIGHUP);
     error |= sigaddset(&sigmask, SIGQUIT);
     error |= sigaddset(&sigmask, SIGUSR1);
     pthread_sigmask(SIG_SETMASK, &sigmask, NULL);
-    /* da vedere */
 
     direttore_opt_t* direttore = (direttore_opt_t*)arg;
     direttore_state_t * stato = direttore->stato_direttore;

@@ -3,6 +3,7 @@
 #include <time.h>
 #include <util.h>
 #include <signal.h>
+#include <logger.h>
 
 #define CASSA_NOT_FOUND -1
 
@@ -16,7 +17,7 @@ static void avverti_supermercato(cliente_opt_t* cliente);
 
 void* cliente(void* arg) {
     /* da vedere */
-    int sig, error = 0;
+    int error = 0;
     sigset_t sigmask;
     error = sigemptyset(&sigmask);
     error |= sigaddset(&sigmask, SIGHUP);
@@ -57,7 +58,7 @@ void* cliente(void* arg) {
         // chiedi a direttore di uscire
         uscita_senza_acquisti(cliente);
     }
-    printf("cliente esce\n");
+    LOG_DEBUG("cliente esce");
     // devo dire al supermercato che sono uscito
     avverti_supermercato(cliente);
     // uscire
@@ -118,8 +119,8 @@ static void uscita_senza_acquisti(cliente_opt_t* cliente) {
         perror("cliente mutex lock 2");
         kill(pid, SIGUSR1);
     }
-    *(cliente->authorized) = false;
-    while (!(*(cliente->authorized))){
+    *(cliente->is_authorized) = false;
+    while (!(*(cliente->is_authorized))){
         if (cond_wait(cliente->auth_cond, cliente->main_mutex) != 0) {
             perror("cliente cond wait 2");
             kill(pid, SIGUSR1);

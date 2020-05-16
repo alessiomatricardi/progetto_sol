@@ -19,7 +19,7 @@ typedef struct _cassa {
     BQueue_t* coda;
     pthread_mutex_t* main_mutex;
     pthread_cond_t* cond;
-    int* queue_size;
+    int* queue_size_notify;
     int tempo_fisso;
     int tempo_prodotto;
     int intervallo_notifica;

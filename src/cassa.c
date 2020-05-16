@@ -11,7 +11,7 @@ static void invia_notifica(cassa_opt_t* cassa);
 
 void* cassa(void* arg) {
     /* da vedere */
-    int sig, error = 0;
+    int error = 0;
     sigset_t sigmask;
     error = sigemptyset(&sigmask);
     error |= sigaddset(&sigmask, SIGHUP);
@@ -109,7 +109,7 @@ static void invia_notifica(cassa_opt_t* cassa) {
     if (mutex_lock(cassa->main_mutex) != 0) {
         perror("mutex cassa");
     }
-    *(cassa->queue_size) = size;
+    *(cassa->queue_size_notify) = size;
     if (mutex_unlock(cassa->main_mutex) != 0) {
         perror("mutex cassa");
     }
