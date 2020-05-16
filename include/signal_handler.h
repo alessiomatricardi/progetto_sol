@@ -3,7 +3,8 @@
 #include <direttore.h>
 
 typedef struct _signal_handler {
-    supermercato_state_t stato_supermercato;
+    supermercato_state_t* stato_supermercato;
+    pthread_mutex_t* quit_mutex;
     /* altro */
 } sig_handler_opt_t;
 

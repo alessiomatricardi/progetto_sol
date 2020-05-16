@@ -4,6 +4,9 @@
 #include <util.h>
 #include <signal.h>
 
+/* pid del processo */
+extern pid_t pid;
+
 static void invia_notifica(cassa_opt_t* cassa);
 
 void* cassa(void* arg) {

@@ -18,6 +18,9 @@
 #define DEFAULT_CONFIG_FILENAME "config.txt"
 #define ACCEPTABLE_OPTIONS ":c:"
 
+/* id del processo */
+pid_t pid;
+
 /* funzione di lettura dei parametri passati da terminale */
 static int set_config_filename(char* config_filename, int argc, char** argv) {
     int opt;
@@ -46,6 +49,7 @@ int main(int argc, char** argv) {
     error |= sigaddset(&sigmask, SIGQUIT);
     error |= sigaddset(&sigmask, SIGUSR1);
     pthread_sigmask(SIG_SETMASK, &sigmask, NULL);
+    pid = getpid();
     /* da vedere */
 
     if (argc != 3 && argc != 1) {
@@ -78,11 +82,13 @@ int main(int argc, char** argv) {
 
     /* strutture dati da utilizzare */
 
+    sig_handler_opt_t sig_hand_opt;
     cliente_opt_t clienti_opt[config.c_max];
     cassa_opt_t casse_opt[config.k_tot];
     direttore_opt_t direttore_opt;
     BQueue_t* code_casse[config.k_tot];
     cassa_state_t stato_casse[config.k_tot];
+    supermercato_state_t stato_supermercato = ATTIVO;
 
     /* thread in gioco nel sistema */
 
@@ -135,10 +141,13 @@ int main(int argc, char** argv) {
         queue_notify[i] = 0;
     }
 
-    pthread_create(&th_signal_handler, NULL, signal_handler, NULL);
+    sig_hand_opt.quit_mutex = &quit_mutex;
+    sig_hand_opt.stato_supermercato = &stato_supermercato;
+
+    pthread_create(&th_signal_handler, NULL, signal_handler, &sig_hand_opt);
 
     /* creazione thread direttore */
-    direttore_opt.stato_direttore = ATTIVO;
+    direttore_opt.stato_direttore = &stato_supermercato;
     direttore_opt.casse = casse_opt;
     direttore_opt.main_mutex = &main_mutex;
     direttore_opt.quit_mutex = &quit_mutex;
@@ -193,36 +202,36 @@ int main(int argc, char** argv) {
 
         pthread_create(&th_clienti[i], NULL, cliente, &clienti_opt[i]);
     }
-    /* chiusura artificiale */
-    sleep(25);
-    printf("dopo sleep\n");
-    pthread_kill(th_signal_handler,SIGHUP);
-    pthread_kill(th_signal_handler, SIGQUIT);
-    pthread_kill(th_signal_handler, SIGUSR1);
 
-    if (mutex_lock(&quit_mutex) != 0) {
-        perror("cliente mutex lock 2");
-        // gestire errore
+    while(1) {
+        if (mutex_lock(&quit_mutex) != 0) {
+            perror("cliente mutex lock 2");
+            // gestire errore
+        }
+        if(stato_supermercato != ATTIVO) {
+            if (mutex_unlock(&quit_mutex) != 0) {
+                perror("cliente mutex lock 2");
+                // gestire errore
+            }
+            break;
+        }
+        if (mutex_unlock(&quit_mutex) != 0) {
+            perror("cliente mutex lock 2");
+            // gestire errore
+        }
+        if (mutex_lock(&exit_mutex) != 0) {
+            perror("cliente mutex lock 2");
+            // gestire errore
+        }
+        //printf("exited clients %d\n", exited_clients);
+        if (exited_clients >= config.e) {
+            // ricicla threads
+        }
+        if (mutex_unlock(&exit_mutex) != 0) {
+            perror("cliente mutex lock 2");
+            // gestire errore
+        }
     }
-    direttore_opt.stato_direttore = CHIUSURA;
-    if (mutex_unlock(&quit_mutex) != 0) {
-        perror("cliente mutex lock 2");
-        // gestire errore
-    }
-    /* chiusura artificiale */
-
-    /*
-    if (mutex_lock(&exit_mutex) != 0) {
-        perror("cliente mutex lock 2");
-        // gestire errore
-    }
-    if(exited_clients >= config.e) {
-        // ricicla threads
-    }
-    if (mutex_unlock(&exit_mutex) != 0) {
-        perror("cliente mutex lock 2");
-        // gestire errore
-    }*/
 
     for (size_t i = 0; i < config.c_max; i++) {
         pthread_join(th_clienti[i], NULL);

@@ -4,6 +4,9 @@
 #include <string.h>
 #include <signal.h>
 
+/* pid del processo */
+extern pid_t pid;
+
 static void autorizza_uscita(bool* auth_array, int num_clienti, pthread_mutex_t* mtx, pthread_cond_t* cond);
 
 void* direttore(void* arg) {
@@ -18,14 +21,14 @@ void* direttore(void* arg) {
     /* da vedere */
 
     direttore_opt_t* direttore = (direttore_opt_t*)arg;
-    direttore_state_t stato;
+    direttore_state_t * stato = direttore->stato_direttore;
     while(1) {
         // controlla stato
         if (mutex_lock(direttore->quit_mutex) != 0) {
             perror("cliente mutex lock 2");
             // gestire errore
         }
-        if((stato = direttore->stato_direttore) != ATTIVO) {
+        if(*stato != ATTIVO) {
             if (mutex_unlock(direttore->quit_mutex) != 0) {
                 perror("cliente mutex lock 2");
                 // gestire errore
@@ -54,7 +57,7 @@ void* direttore(void* arg) {
         autorizza_uscita(direttore->auth_array, direttore->num_clienti, direttore->main_mutex, direttore->auth_cond);
     }
     printf("arrivato qui\n");
-    if(stato == CHIUSURA) {
+    if(*stato == CHIUSURA) {
         /* tutte le casse vanno in stato di CHIUSURA */
         if (mutex_lock(direttore->main_mutex) != 0) {
             perror("cliente mutex lock 2");
@@ -74,7 +77,7 @@ void* direttore(void* arg) {
             perror("cliente mutex lock 2");
             // gestire errore
         }
-    } else { /* stato == CHIUSURA_IMMEDIATA */
+    } else { /* *stato == CHIUSURA_IMMEDIATA */
 
     }
     pthread_exit((void*)0);

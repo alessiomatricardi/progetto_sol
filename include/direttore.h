@@ -15,7 +15,7 @@ typedef enum _direttore_state {
 typedef direttore_state_t supermercato_state_t;
 
 typedef struct _direttore {
-    direttore_state_t stato_direttore;
+    direttore_state_t* stato_direttore;
     pthread_mutex_t* quit_mutex;
     cassa_opt_t* casse;
     pthread_mutex_t* main_mutex;

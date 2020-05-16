@@ -8,6 +8,7 @@
 
 typedef enum _cassa_state {
     APERTA,
+    IN_CHIUSURA,
     CHIUSA,
     CHIUSURA_SUP_CASSA,
     CHIUSURA_IMM_SUP_CASSA,
