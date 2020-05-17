@@ -17,8 +17,8 @@ typedef enum _cliente_state {
 /* struct di supporto di ogni thread cliente */
 typedef struct _cliente {
     /* variabili mutabili */
-    cliente_state_t stato_cliente;  /* stato attuale del cliente */
     pthread_mutex_t* mutex_cliente; /* mutex personale di ogni cliente */
+    cliente_state_t stato_cliente;  /* stato attuale del cliente */
     pthread_cond_t* cond_incoda;    /* var. condizione personale di ogni cliente */
     pthread_mutex_t* main_mutex;    /* mutex principale */
     bool* is_authorized;            /* autorizzato ad uscire dal direttore se num_prodotti = 0 */
@@ -30,6 +30,7 @@ typedef struct _cliente {
     bool* is_exited;                /* uscito dal supermercato */
     int* num_exited;                /* numero di clienti usciti dal supermercato */
     /* variabili immutabili */
+    int id_cliente;     /* id del cliente */
     int num_prodotti;   /* numero dei prodotti acquistati dal cliente, tra 0 e P>0 */
     int casse_tot;      /* numero di casse totali */
     int tempo_acquisti; /* tempo impiegato per gli acquisti, tra 10 e T>10 millisecondi */

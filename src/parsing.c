@@ -161,5 +161,13 @@ int parse_config(const char* filename, config_t* config) {
         fprintf(stderr, "Il numero di casse inizialmente aperte deve essere minore del numero totale\n");
         return -1;
     }
+    if (config->s1 > config->k_tot) {
+        fprintf(stderr, "La soglia s1 non può essere maggiore del numero di casse totali\n");
+        return -1;
+    }
+    if (config->s2 > config->c_max) {
+        fprintf(stderr, "La soglia s2 non può essere maggiore del numero di clienti massimo\n");
+        return -1;
+    }
     return 0;
 }

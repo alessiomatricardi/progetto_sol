@@ -3,6 +3,7 @@
 #include <util.h>
 #include <string.h>
 #include <signal.h>
+#include <logger.h>
 
 /* pid del processo */
 extern pid_t pid;
@@ -17,7 +18,10 @@ void* direttore(void* arg) {
     error |= sigaddset(&sigmask, SIGHUP);
     error |= sigaddset(&sigmask, SIGQUIT);
     error |= sigaddset(&sigmask, SIGUSR1);
-    pthread_sigmask(SIG_SETMASK, &sigmask, NULL);
+    if ((error |= pthread_sigmask(SIG_SETMASK, &sigmask, NULL)) != 0) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
+    }
 
     direttore_opt_t* direttore = (direttore_opt_t*)arg;
     direttore_state_t * stato = direttore->stato_direttore;
@@ -63,7 +67,7 @@ void* direttore(void* arg) {
             // gestire errore
         }
         for(size_t i = 0; i < direttore->casse_tot; i++) {
-            *(direttore->casse[i].stato_cassa) = CHIUSURA_SUP_CASSA;
+            *(direttore->casse[i].stato_cassa) = CHIUSURA_SUPERMERCATO;
             while(push(direttore->casse[i].coda, END_OF_SERVICE) != 0) {
                 perror("push");
                 // gestione errore

@@ -3,10 +3,6 @@
 #define UTIL_H
 #include <pthread.h>
 
-#define ERR(...)                  \
-    fprintf(stderr, __VA_ARGS__); \
-    exit(EXIT_FAILURE);
-
 #define CHECK_NULL(ptr) (ptr) == NULL
 
 /** 

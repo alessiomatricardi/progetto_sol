@@ -11,6 +11,8 @@
 #include <util.h>
 #include <signal.h>
 #include <signal_handler.h>
+#include <logger.h>
+#include <errno.h>
 
 /* macros */
 
@@ -48,7 +50,10 @@ int main(int argc, char** argv) {
     error |= sigaddset(&sigmask, SIGHUP);
     error |= sigaddset(&sigmask, SIGQUIT);
     error |= sigaddset(&sigmask, SIGUSR1);
-    pthread_sigmask(SIG_SETMASK, &sigmask, NULL);
+    if((error |= pthread_sigmask(SIG_SETMASK, &sigmask, NULL)) != 0) {
+        LOG_CRITICAL(strerror(errno));
+        return EXIT_FAILURE;
+    }
     /* salva id del processo */
     pid = getpid();
 
@@ -89,6 +94,8 @@ int main(int argc, char** argv) {
     BQueue_t* code_casse[config.k_tot];
     cassa_state_t stato_casse[config.k_tot];
     supermercato_state_t stato_supermercato = ATTIVO;
+    /* id cliente progressivo */
+    int id_cliente = 0;
 
     /* thread in gioco nel sistema */
 
@@ -181,8 +188,9 @@ int main(int argc, char** argv) {
 
     /* creazione threads clienti */
     for (size_t i = 0; i < config.c_max; i++) {
-        clienti_opt[i].stato_cliente = ENTRATO;
+        clienti_opt[i].id_cliente = id_cliente++;
         clienti_opt[i].mutex_cliente = &client_mutex[i];
+        clienti_opt[i].stato_cliente = ENTRATO;
         clienti_opt[i].cond_incoda = &cond_incoda[i];
         clienti_opt[i].main_mutex = &main_mutex;
         clienti_opt[i].is_authorized = &auth_array[i];
@@ -202,9 +210,6 @@ int main(int argc, char** argv) {
 
         pthread_create(&th_clienti[i], NULL, cliente, &clienti_opt[i]);
     }
-
-    sleep(3);
-    kill(pid, SIGQUIT);
 
     while(1) {
         if (mutex_lock(&quit_mutex) != 0) {
@@ -226,9 +231,22 @@ int main(int argc, char** argv) {
             perror("cliente mutex lock 2");
             // gestire errore
         }
-        //printf("exited clients %d\n", exited_clients);
         if (exited_clients >= config.e) {
             // ricicla threads
+            for (size_t i = 0; i < config.c_max; i++) {
+                if(*(clienti_opt[i].is_exited)) {
+                    clienti_opt[i].id_cliente = id_cliente++;
+                    clienti_opt[i].stato_cliente = ENTRATO;
+                    *(clienti_opt[i].is_exited) = false;
+                    clienti_opt[i].num_exited = &exited_clients;
+                    int n_prod = rand_r(&seed) % (config.p_max + 1);
+                    int t_acquisti = rand_r(&seed) % (config.t_max - MIN_T_ACQUISTI + 1) + MIN_T_ACQUISTI;
+                    clienti_opt[i].num_prodotti = n_prod;
+                    clienti_opt[i].tempo_acquisti = t_acquisti;
+
+                    pthread_create(&th_clienti[i], NULL, cliente, &clienti_opt[i]);
+                }
+            }
         }
         if (mutex_unlock(&exit_mutex) != 0) {
             perror("cliente mutex lock 2");
@@ -243,6 +261,7 @@ int main(int argc, char** argv) {
         pthread_join(th_casse[i], NULL);
     }
     pthread_join(th_direttore, NULL);
+    //pthread_join(th_signal_handler, NULL);
 
     return 0;
 }

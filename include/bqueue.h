@@ -8,9 +8,9 @@
 #ifndef B_QUEUE_H
 #define B_QUEUE_H
 
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <util.h>
 
 struct bqueue_s;
@@ -34,7 +34,7 @@ BQueue_t* init_BQueue(size_t num);
  * @param q puntatore alla coda da cancellare
  * @param fun funzione di deallocazione del dato presente nella coda
 */
-void delete_BQueue(BQueue_t *q, void (*fun)(void*));
+void delete_BQueue(BQueue_t* q, void (*fun)(void*));
 
 /**
  * inserisce un elemento nella coda
@@ -43,9 +43,9 @@ void delete_BQueue(BQueue_t *q, void (*fun)(void*));
  * @param data dato da inserire
  * 
  * @return 0 sul successo
- * @return -1 se fallimento (dato da inserire NULL, errore con mutex, condizioni)
+ * @return -1 se fallimento (setta errno)
 */
-int push(BQueue_t *q, void* data);
+int push(BQueue_t* q, void* data);
 
 /**
  * estrae un elemento dalla coda
@@ -53,15 +53,15 @@ int push(BQueue_t *q, void* data);
  * @param q puntatore alla coda
  * @return puntatore al dato da restituire
 */
-void* pop(BQueue_t *q);
+void* pop(BQueue_t* q);
 
 /**
  * restituisce la dimensione attuale della coda
  * 
  * @param q coda
  * @return numero di elementi nella coda
- * @return -1 se fallimento (errore con mutex)
+ * @return -1 se fallimento (setta errno)
 */
-int get_size(BQueue_t *q);
+int get_size(BQueue_t* q);
 
 #endif /* B_QUEUE_H */

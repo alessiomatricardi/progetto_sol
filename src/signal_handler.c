@@ -2,11 +2,13 @@
 #include <signal.h>
 #include <signal_handler.h>
 #include <util.h>
+#include <bool.h>
+#include <logger.h>
 
 /* pid del processo */
 extern pid_t pid;
 
-static void handle_signal(int signal, sig_handler_opt_t* sig_hand) {
+static bool handle_signal(int signal, sig_handler_opt_t* sig_hand) {
     switch (signal) {
         case SIGHUP: {
             if (mutex_lock(sig_hand->quit_mutex) != 0) {
@@ -18,7 +20,7 @@ static void handle_signal(int signal, sig_handler_opt_t* sig_hand) {
                 perror("cliente mutex lock 2");
                 // gestire errore
             }
-            break;
+            return true;
         }
         case SIGQUIT: {
             if (mutex_lock(sig_hand->quit_mutex) != 0) {
@@ -30,22 +32,28 @@ static void handle_signal(int signal, sig_handler_opt_t* sig_hand) {
                 perror("cliente mutex lock 2");
                 // gestire errore
             }
-            break;
+            return true;
         }
         case SIGUSR1:
-            break;
+            // fai qualcosa che ammazza tutto
+            return true;
+        default: return true;
     }
 }
 
 void* signal_handler(void* arg) {
     sig_handler_opt_t* sig_hand = (sig_handler_opt_t*)arg;
+    /* maschera segnali */
     int sig, error = 0;
     sigset_t sigmask;
     error = sigemptyset(&sigmask);
     error |= sigaddset(&sigmask, SIGHUP);
     error |= sigaddset(&sigmask, SIGQUIT);
     error |= sigaddset(&sigmask, SIGUSR1);
-    pthread_sigmask(SIG_SETMASK, &sigmask, NULL);
+    if ((error |= pthread_sigmask(SIG_SETMASK, &sigmask, NULL)) != 0) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
+    }
 
     if (error) {
         // errore
@@ -56,8 +64,7 @@ void* signal_handler(void* arg) {
                 // errore
             }
             printf("Ho catturato %d\n", sig);
-            handle_signal(sig, sig_hand);
-        } while (1);
+        } while (handle_signal(sig, sig_hand));
     }
     return NULL;
 }
