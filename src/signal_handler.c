@@ -12,32 +12,34 @@ static bool handle_signal(int signal, sig_handler_opt_t* sig_hand) {
     switch (signal) {
         case SIGHUP: {
             if (mutex_lock(sig_hand->quit_mutex) != 0) {
-                perror("cliente mutex lock 2");
-                // gestire errore
+                LOG_CRITICAL;
+                kill(pid, SIGUSR1);
             }
             *(sig_hand->stato_supermercato) = CHIUSURA;
             if (mutex_unlock(sig_hand->quit_mutex) != 0) {
-                perror("cliente mutex lock 2");
-                // gestire errore
+                LOG_CRITICAL;
+                kill(pid, SIGUSR1);
             }
             return true;
         }
         case SIGQUIT: {
             if (mutex_lock(sig_hand->quit_mutex) != 0) {
-                perror("cliente mutex lock 2");
-                // gestire errore
+                LOG_CRITICAL;
+                kill(pid, SIGUSR1);
             }
-            *(sig_hand->stato_supermercato) = CHIUSURA;
+            *(sig_hand->stato_supermercato) = CHIUSURA_IMMEDIATA;
             if (mutex_unlock(sig_hand->quit_mutex) != 0) {
-                perror("cliente mutex lock 2");
-                // gestire errore
+                LOG_CRITICAL;
+                kill(pid, SIGUSR1);
             }
             return true;
         }
         case SIGUSR1:
-            // fai qualcosa che ammazza tutto
+            // DEALLOCA???
+            printf("fai qualcosa dio porcooo\n");
+            kill(pid, SIGKILL);
             return true;
-        default: return true;
+        default: return false;
     }
 }
 
@@ -55,16 +57,14 @@ void* signal_handler(void* arg) {
         kill(pid, SIGUSR1);
     }
 
-    if (error) {
-        // errore
-    } else {
-        do {
-            error = sigwait(&sigmask, &sig);
-            if (error) {
-                // errore
-            }
-            printf("Ho catturato %d\n", sig);
-        } while (handle_signal(sig, sig_hand));
-    }
+    do {
+        error = sigwait(&sigmask, &sig);
+        if (error) {
+            LOG_CRITICAL;
+            kill(pid, SIGKILL);
+        }
+        //printf("Ho catturato %d\n", sig);
+    } while (handle_signal(sig, sig_hand));
+
     return NULL;
 }

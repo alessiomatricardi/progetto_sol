@@ -24,7 +24,7 @@ typedef struct _direttore {
     int* queue_notify;
     int num_clienti;
     int casse_tot;
-    int* casse_attive;
+    int* num_casse_attive;
     int soglia_1;
     int soglia_2;
 } direttore_opt_t;

@@ -136,7 +136,7 @@ int main(int argc, char** argv) {
         code_casse[i] = init_BQueue(config.c_max);
     }
 
-    int casse_attive = config.casse_iniziali;
+    int num_casse_attive = config.casse_iniziali;
     bool auth_array[config.c_max];
     bool exit_array[config.c_max];
     for(size_t i = 0; i < config.c_max; i++) {
@@ -162,12 +162,10 @@ int main(int argc, char** argv) {
     direttore_opt.auth_array = auth_array;
     direttore_opt.num_clienti = config.c_max;
     direttore_opt.casse_tot = config.k_tot;
-    direttore_opt.casse_attive = &casse_attive;
+    direttore_opt.num_casse_attive = &num_casse_attive;
     direttore_opt.queue_notify = queue_notify;
     direttore_opt.soglia_1 = config.s1;
     direttore_opt.soglia_2 = config.s2;
-    /* attributi per ora nulli */
-    pthread_create(&th_direttore, NULL, direttore, &direttore_opt);
 
     /* creazione threads casse */
     unsigned seed = time(NULL);
@@ -186,6 +184,9 @@ int main(int argc, char** argv) {
         pthread_create(&th_casse[i], NULL, cassa, &casse_opt[i]);
     }
 
+    /* attributi per ora nulli */
+    pthread_create(&th_direttore, NULL, direttore, &direttore_opt);
+
     /* creazione threads clienti */
     for (size_t i = 0; i < config.c_max; i++) {
         clienti_opt[i].id_cliente = id_cliente++;
@@ -197,7 +198,7 @@ int main(int argc, char** argv) {
         clienti_opt[i].auth_cond = &auth_cond;
         clienti_opt[i].stato_casse = stato_casse;
         clienti_opt[i].coda_casse = code_casse;
-        clienti_opt[i].casse_attive = &casse_attive;
+        clienti_opt[i].num_casse_attive = &num_casse_attive;
         clienti_opt[i].exit_mutex = &exit_mutex;
         clienti_opt[i].is_exited = &exit_array[i];
         clienti_opt[i].num_exited = &exited_clients;
@@ -235,6 +236,7 @@ int main(int argc, char** argv) {
             // ricicla threads
             for (size_t i = 0; i < config.c_max; i++) {
                 if(*(clienti_opt[i].is_exited)) {
+                    pthread_join(th_clienti[i], NULL);
                     clienti_opt[i].id_cliente = id_cliente++;
                     clienti_opt[i].stato_cliente = ENTRATO;
                     *(clienti_opt[i].is_exited) = false;
@@ -247,6 +249,7 @@ int main(int argc, char** argv) {
                     pthread_create(&th_clienti[i], NULL, cliente, &clienti_opt[i]);
                 }
             }
+            exited_clients -= config.e;
         }
         if (mutex_unlock(&exit_mutex) != 0) {
             perror("cliente mutex lock 2");

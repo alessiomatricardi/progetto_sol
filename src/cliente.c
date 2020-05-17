@@ -83,12 +83,12 @@ static void vai_in_coda(cliente_opt_t* cliente, int* scelta, unsigned* seed) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-    if (cliente->casse_attive != 0) {
+    if (cliente->num_casse_attive != 0) {
         /*
          * scelgo randomicamente una delle casse attive in quel momento
-         * tmp compreso tra 0 e casse_attive-1
+         * tmp compreso tra 0 e num_casse_attive-1
         */
-        int tmp = rand_r(seed) % *(cliente->casse_attive);
+        int tmp = rand_r(seed) % *(cliente->num_casse_attive);
         for (size_t i = 0; i < cliente->casse_tot; i++) {
             if ((cliente->stato_casse[i] == APERTA) && (tmp == 0)) {
                 // mettiti in coda
@@ -97,7 +97,7 @@ static void vai_in_coda(cliente_opt_t* cliente, int* scelta, unsigned* seed) {
                     kill(pid, SIGUSR1);
                 }
                 *scelta = i;
-                //LOG_DEBUG("cliente %d in cassa %d", cliente->id_cliente, *scelta);
+                LOG_DEBUG("cliente %d in cassa %d", cliente->id_cliente, *scelta);
                 break;
             } else
                 tmp--;
@@ -168,6 +168,7 @@ static void avverti_supermercato(cliente_opt_t* cliente) {
     }
     *(cliente->is_exited) = true;
     *(cliente->num_exited) += 1;
+    LOG_DEBUG("CLIENTI USCITI %d", *(cliente->num_exited));
     if (mutex_unlock(cliente->exit_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);

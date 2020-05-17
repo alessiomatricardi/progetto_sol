@@ -25,7 +25,7 @@ typedef struct _cliente {
     pthread_cond_t* auth_cond;      /* var. condizione per attesa autorizzazione dal direttore */
     cassa_state_t* stato_casse;     /* array dello stato delle casse */
     BQueue_t** coda_casse;          /* insieme delle code delle casse */
-    int* casse_attive;              /* casse attualmente aperte */
+    int* num_casse_attive;          /* casse attualmente aperte */
     pthread_mutex_t* exit_mutex;    /* mutex per segnalare uscita al supermercato */
     bool* is_exited;                /* uscito dal supermercato */
     int* num_exited;                /* numero di clienti usciti dal supermercato */
