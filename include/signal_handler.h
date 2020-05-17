@@ -5,7 +5,6 @@
 typedef struct _signal_handler {
     supermercato_state_t* stato_supermercato;
     pthread_mutex_t* quit_mutex;
-    /* altro */
 } sig_handler_opt_t;
 
 void* signal_handler(void* arg);

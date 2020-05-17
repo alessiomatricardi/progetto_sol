@@ -1,12 +1,15 @@
 #define _POSIX_C_SOURCE 200112L
+#include <bool.h>
+#include <logger.h>
 #include <signal.h>
 #include <signal_handler.h>
 #include <util.h>
-#include <bool.h>
-#include <logger.h>
 
 /* pid del processo */
 extern pid_t pid;
+
+/* variabile di terminazione del processo supermercato */
+extern volatile sig_atomic_t continua;
 
 static bool handle_signal(int signal, sig_handler_opt_t* sig_hand) {
     switch (signal) {
@@ -35,16 +38,14 @@ static bool handle_signal(int signal, sig_handler_opt_t* sig_hand) {
             return true;
         }
         case SIGUSR1:
-            // DEALLOCA???
-            printf("fai qualcosa dio porcooo\n");
-            kill(pid, SIGKILL);
-            return true;
-        default: return false;
+            continua = false;
+            return false;
+        default:
+            return false;
     }
 }
 
 void* signal_handler(void* arg) {
-    sig_handler_opt_t* sig_hand = (sig_handler_opt_t*)arg;
     /* maschera segnali */
     int sig, error = 0;
     sigset_t sigmask;
@@ -52,10 +53,13 @@ void* signal_handler(void* arg) {
     error |= sigaddset(&sigmask, SIGHUP);
     error |= sigaddset(&sigmask, SIGQUIT);
     error |= sigaddset(&sigmask, SIGUSR1);
+    error |= sigaddset(&sigmask, SIGUSR2);
     if ((error |= pthread_sigmask(SIG_SETMASK, &sigmask, NULL)) != 0) {
         LOG_CRITICAL;
-        kill(pid, SIGUSR1);
+        kill(pid, SIGKILL);
     }
+
+    sig_handler_opt_t* sig_hand = (sig_handler_opt_t*)arg;
 
     do {
         error = sigwait(&sigmask, &sig);
@@ -65,6 +69,6 @@ void* signal_handler(void* arg) {
         }
         //printf("Ho catturato %d\n", sig);
     } while (handle_signal(sig, sig_hand));
-
+    
     return NULL;
 }

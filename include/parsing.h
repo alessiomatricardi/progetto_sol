@@ -3,8 +3,8 @@
 */
 #ifndef PARSING_H
 #define PARSING_H
-#include <icl_hash.h>
 #include <bool.h>
+#include <icl_hash.h>
 
 /* grandezza massima del buffer (ogni riga del file config) */
 #define MAX_BUFFER 256
@@ -17,17 +17,17 @@
 
 /* struct config */
 typedef struct _config {
-    int casse_iniziali;
-    int t_singolo_prodotto;
-    int t_agg_clienti;
-    int t_max;
-    int p_max;
-    int k_tot;
-    int s1;
-    int s2;
-    int c_max;
-    int e;
-    char log_file_name[MAX_LOG_FILENAME];
+    int casse_iniziali;                   /* casse inizialmente aperte */
+    int t_singolo_prodotto;               /* tempo impiegato da un cassiere per un singolo prodotto */
+    int t_agg_clienti;                    /* tempo che intercorre tra una notifica ed un'altra */
+    int t_max;                            /* T = tempo massimo che ha il cliente per acquistare */
+    int p_max;                            /* P = numero massimo di prodotti acquistabili */
+    int k_tot;                            /* K = numero di casse totali */
+    int s1;                               /* Soglia 1 */
+    int s2;                               /* Soglia 2 */
+    int c_max;                            /* C = numero massimo di clienti nel supermercato */
+    int e;                                /* E = quando il numero di clienti scende a C-E, entrano E nuovi clienti */
+    char log_file_name[MAX_LOG_FILENAME]; /* nome del file dove scrivere il log risultante */
 } config_t;
 
 /**

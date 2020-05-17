@@ -21,7 +21,7 @@ int msleep(long msec);
  * @return 0 if success
  * @return -1 if failure, sets errno
 */
-int mutex_lock(pthread_mutex_t * mutex);
+int mutex_lock(pthread_mutex_t* mutex);
 
 /**
  * unlock a mutex
@@ -30,7 +30,7 @@ int mutex_lock(pthread_mutex_t * mutex);
  * @return 0 if success
  * @return -1 if failure, sets errno
 */
-int mutex_unlock(pthread_mutex_t * mutex);
+int mutex_unlock(pthread_mutex_t* mutex);
 
 /**
  * rilascia mutex e mette il thread in pausa
@@ -40,7 +40,7 @@ int mutex_unlock(pthread_mutex_t * mutex);
  * @return 0 if success
  * @return -1 if failure, sets errno
 */
-int cond_wait(pthread_cond_t * cond, pthread_mutex_t * mutex);
+int cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex);
 
 /**
  * riattiva un thread che aveva fatto una wait su cond

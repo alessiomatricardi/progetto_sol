@@ -1,7 +1,6 @@
 #define _POSIX_C_SOURCE 200112L
 #include <direttore.h>
 #include <logger.h>
-#include <signal.h>
 #include <string.h>
 #include <util.h>
 
@@ -68,6 +67,7 @@ static bool check_apertura(direttore_opt_t* direttore, direttore_state_t* stato)
 }
 
 static void controlla_casse(direttore_opt_t* direttore) {
+    if (!*(direttore->casse_partite)) return;
     int soglia1 = direttore->soglia_1; /* chiude una cassa se ci sono almeno SOGLIA1 casse che hanno al più un cliente */
     int soglia2 = direttore->soglia_2; /* apre una cassa (se possibile) se c’è almeno una cassa con almeno SOGLIA2 clienti in coda */
     int* queue_notify = direttore->queue_notify;
@@ -90,7 +90,7 @@ static void controlla_casse(direttore_opt_t* direttore) {
             } else if (queue_notify[i] >= soglia2) {
                 is_verified_soglia2 = true;
             }
-        } else if (to_open_index == -1) {
+        } else if ((*(direttore->casse[i].stato_cassa) == CHIUSA) && (to_open_index == -1)) {
             to_open_index = i;
         }
     }
@@ -117,9 +117,7 @@ static void controlla_casse(direttore_opt_t* direttore) {
 
         *(direttore->num_casse_attive) -= 1;
         LOG_DEBUG("Ha appena chiuso la cassa %d", to_close_index);
-        msleep(1000);
-    }
-    else if (is_verified_soglia2 && (*(direttore->num_casse_attive) < direttore->casse_tot)) {
+    } else if (is_verified_soglia2 && (*(direttore->num_casse_attive) < direttore->casse_tot)) {
         // apro la prima cassa non aperta
         *(direttore->casse[to_open_index].stato_cassa) = APERTA;
 

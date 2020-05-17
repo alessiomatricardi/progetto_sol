@@ -1,6 +1,5 @@
 #define _POSIX_C_SOURCE 200112L
 #include <cliente.h>
-#include <errno.h>
 #include <logger.h>
 #include <signal.h>
 #include <time.h>
@@ -60,6 +59,7 @@ void* cliente(void* arg) {
         }
     } else {
         // chiedi a direttore di uscire
+        LOG_DEBUG("cliente %d esce senza acquisti", cliente->id_cliente);
         uscita_senza_acquisti(cliente);
     }
     //LOG_DEBUG("cliente %d esce", cliente->id_cliente);
@@ -143,7 +143,6 @@ static void uscita_senza_acquisti(cliente_opt_t* cliente) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-    *(cliente->is_authorized) = false;
     while (!(*(cliente->is_authorized))) {
         if (cond_wait(cliente->auth_cond, cliente->main_mutex) != 0) {
             LOG_CRITICAL;
@@ -168,7 +167,7 @@ static void avverti_supermercato(cliente_opt_t* cliente) {
     }
     *(cliente->is_exited) = true;
     *(cliente->num_exited) += 1;
-    LOG_DEBUG("CLIENTI USCITI %d", *(cliente->num_exited));
+    LOG_DEBUG("clienti usciti %d", *(cliente->num_exited));
     if (mutex_unlock(cliente->exit_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);

@@ -69,9 +69,9 @@ void* cassa(void* arg) {
 
             /* per valutare il tempo che intercorre tra una notifica ed un'altra */
             clock_gettime(CLOCK_MONOTONIC, &tend);
-            LOG_DEBUG("Sent notify after %.5f seconds",
-                   ((double)tend.tv_sec + 1.0e-9 * tend.tv_nsec) -
-                       ((double)tstart.tv_sec + 1.0e-9 * tstart.tv_nsec));
+            LOG_DEBUG("notify sent after %.5f seconds",
+                      ((double)tend.tv_sec + 1.0e-9 * tend.tv_nsec) -
+                          ((double)tstart.tv_sec + 1.0e-9 * tstart.tv_nsec));
             tstart = tend;
 
             t_servizio -= t_notifica;
@@ -82,7 +82,7 @@ void* cassa(void* arg) {
 
         set_stato_cliente(cliente, FINITO_CASSA);
     }
-    LOG_DEBUG0("Ricevuta chiusura");
+    LOG_DEBUG("cassa %d, chiusura ricevuta", cassa->id_cassa);
 
     libera_cassa(cassa, *stato);
     pthread_exit((void*)0);
@@ -137,6 +137,10 @@ static void libera_cassa(cassa_opt_t* cassa, cassa_state_t stato) {
     void* tmp_cliente;
     while (get_size(cassa->coda) > 0) {
         tmp_cliente = pop(cassa->coda);
+        if(CHECK_NULL(tmp_cliente)) {
+            LOG_CRITICAL;
+            kill(pid, SIGUSR1);
+        }
         if (tmp_cliente == END_OF_SERVICE) break;
         cliente_opt_t* cliente = (cliente_opt_t*)tmp_cliente;
         if (stato == IN_CHIUSURA) {

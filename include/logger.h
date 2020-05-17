@@ -2,6 +2,7 @@
 #define LOGGER_H
 
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 
 enum __loglevel {
@@ -33,17 +34,15 @@ static char* levelname(enum __loglevel level) {
         } while (0);                                                        \
     }
 
-#define LOG_0(level, msg)                                           \
-    {                                                               \
-        do {                                                        \
-            if (level <= LOG_LEVEL) {                               \
-                fprintf(LOG_OUTFILE,                                \
-                        "[ %s ] %s:%d %s"                           \
-                        "\n",                                       \
-                        levelname(level), __FILE__, __LINE__, msg); \
-                fflush(LOG_OUTFILE);                                \
-            }                                                       \
-        } while (0);                                                \
+#define LOG_0(level, msg)                                                                \
+    {                                                                                    \
+        do {                                                                             \
+            if (level <= LOG_LEVEL) {                                                    \
+                fprintf(LOG_OUTFILE,                                                     \
+                        "[ %s ] %s:%d %s\n", levelname(level), __FILE__, __LINE__, msg); \
+                fflush(LOG_OUTFILE);                                                     \
+            }                                                                            \
+        } while (0);                                                                     \
     }
 
 /* usa LOG_DEBUG0 se non vuoi passare parametri */
@@ -58,8 +57,8 @@ static char* levelname(enum __loglevel level) {
         LOG_0(LOGLEVEL_DEBUG, msg); \
     } while (0);
 
-#define LOG_CRITICAL              \
-    do {                               \
+#define LOG_CRITICAL                               \
+    do {                                           \
         LOG_0(LOGLEVEL_CRITICAL, strerror(errno)); \
     } while (0);
 

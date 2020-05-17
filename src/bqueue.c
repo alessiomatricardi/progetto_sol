@@ -32,14 +32,12 @@ BQueue_t* init_BQueue(size_t num) {
     q->count = 0;
     int myerror = 0;
     if (pthread_mutex_init(&(q->mutex), NULL) != 0) {
-        perror("while init mutex");
         myerror = errno;
         free(q);
         errno = myerror;
         return NULL;
     }
     if (pthread_cond_init(&(q->cond_empty), NULL) != 0) {
-        perror("while init cond_empty");
         myerror = errno;
         pthread_mutex_destroy(&q->mutex);
         free(q);
@@ -47,7 +45,6 @@ BQueue_t* init_BQueue(size_t num) {
         return NULL;
     }
     if (pthread_cond_init(&(q->cond_full), NULL) != 0) {
-        perror("while init cond_full");
         myerror = errno;
         pthread_mutex_destroy(&q->mutex);
         pthread_cond_destroy(&q->cond_empty);
