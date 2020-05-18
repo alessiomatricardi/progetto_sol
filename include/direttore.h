@@ -26,11 +26,12 @@ typedef struct _direttore {
     int* queue_notify;                  /* array dove ogni cassa scrive il numero dei clienti in coda */
     int* num_casse_attive;              /* numero attuale delle casse attive */
     /* variabili immutabili */
-    int num_clienti;                     /* numero massimo di clienti */
-    int casse_tot;                       /* numero totale di clienti */
-    int soglia_1;                        /* soglia1 */
-    int soglia_2;                        /* soglia2 */
+    int num_clienti;                      /* numero massimo di clienti */
+    int casse_tot;                        /* numero totale di clienti */
+    int soglia_1;                         /* soglia1 */
+    int soglia_2;                         /* soglia2 */
     volatile sig_atomic_t* casse_partite; /* se le casse non sono tutte partite, il direttore non controlla le notifiche */
+    unsigned seed;                        /* seed per randomizzazione */
 } direttore_opt_t;
 
 void* direttore(void* arg);

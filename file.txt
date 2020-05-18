@@ -25,3 +25,5 @@ thread di supporto per notifiche con sigwait
 array casse aperte
 coda di clienti da riattivare quando arriviamo a c-e
 https://stackoverflow.com/questions/1157209/is-there-an-alternative-sleep-function-in-c-to-milliseconds
+
+https://icevanila.com/question/memory-leaks-in-pthread-even-if-the-state-is-detached

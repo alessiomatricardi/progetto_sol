@@ -8,9 +8,6 @@
 /* pid del processo */
 extern pid_t pid;
 
-/* variabile di terminazione del processo supermercato */
-extern volatile sig_atomic_t continua;
-
 static bool handle_signal(int signal, sig_handler_opt_t* sig_hand) {
     switch (signal) {
         case SIGHUP: {
@@ -38,7 +35,7 @@ static bool handle_signal(int signal, sig_handler_opt_t* sig_hand) {
             return true;
         }
         case SIGUSR1:
-            continua = false;
+            kill(pid, SIGKILL);
             return false;
         default:
             return false;
@@ -70,5 +67,5 @@ void* signal_handler(void* arg) {
         //printf("Ho catturato %d\n", sig);
     } while (handle_signal(sig, sig_hand));
     
-    return NULL;
+    pthread_exit((void*)0);
 }

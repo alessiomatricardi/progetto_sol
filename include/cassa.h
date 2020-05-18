@@ -8,7 +8,6 @@
 
 typedef enum _cassa_state {
     APERTA,                          /* cassa regolarmente aperta */
-    IN_CHIUSURA,                     /* la cassa deve chiudere e fa spostare i clienti */
     CHIUSA,                          /* la cassa è attualmente chiusa */
     CHIUSURA_SUPERMERCATO,           /* la cassa deve servire tutti i clienti in coda e chiudere */
     CHIUSURA_IMMEDIATA_SUPERMERCATO, /* la cassa deve far uscire tutti i clienti */

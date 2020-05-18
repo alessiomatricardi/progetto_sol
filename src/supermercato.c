@@ -22,14 +22,11 @@
     if ((r = (call)) != 0) {  \
         errno = r;            \
         LOG_CRITICAL;         \
-        goto cleanup;         \
+        kill(pid, SIGUSR1);   \
     }
 
 /* id del processo */
 pid_t pid;
-
-/* variabile di terminazione in caso di errori */
-volatile sig_atomic_t continua = true;
 
 /* funzione di lettura dei parametri passati da terminale */
 static int set_config_filename(char* config_filename, int argc, char** argv) {
@@ -135,6 +132,7 @@ int main(int argc, char** argv) {
     int exited_clients = 0;                       /* numero di clienti usciti */
     int queue_notify[config.k_tot];               /* array per notifiche grandezza coda */
     volatile sig_atomic_t casse_partite = false;  /* informa il direttore quando le casse sono tutte "partite" */
+    unsigned seed_direttore = time(NULL);
 
     /* inizializzazione mutex */
     PTHREAD_CALL(error, pthread_mutex_init(&main_mutex, NULL));
@@ -161,7 +159,7 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < config.k_tot; i++) {
         if (CHECK_NULL(code_casse[i] = init_BQueue(config.c_max))) {
             LOG_CRITICAL;
-            goto cleanup;
+            kill(pid, SIGUSR1);
         }
     }
 
@@ -195,6 +193,7 @@ int main(int argc, char** argv) {
     direttore_opt.soglia_1 = config.s1;
     direttore_opt.soglia_2 = config.s2;
     direttore_opt.casse_partite = &casse_partite;
+    direttore_opt.seed = seed_direttore;
 
     PTHREAD_CALL(error, pthread_create(&th_direttore, NULL, direttore, &direttore_opt));
 
@@ -242,31 +241,31 @@ int main(int argc, char** argv) {
         PTHREAD_CALL(error, pthread_create(&th_clienti[i], NULL, cliente, &clienti_opt[i]));
     }
 
-    while (continua) {
+    while (1) {
         if (mutex_lock(&quit_mutex) != 0) {
             LOG_CRITICAL;
-            goto cleanup;
+            kill(pid, SIGUSR1);
         }
         if (stato_supermercato != ATTIVO) {
             if (mutex_unlock(&quit_mutex) != 0) {
                 LOG_CRITICAL;
-                goto cleanup;
+                kill(pid, SIGUSR1);
             }
             break;
         }
         if (mutex_unlock(&quit_mutex) != 0) {
             LOG_CRITICAL;
-            goto cleanup;
+            kill(pid, SIGUSR1);
         }
         if (mutex_lock(&exit_mutex) != 0) {
             LOG_CRITICAL;
-            goto cleanup;
+            kill(pid, SIGUSR1);
         }
         if (exited_clients >= config.e) {
             // ricicla threads
             for (size_t i = 0; i < config.c_max; i++) {
                 if (*(clienti_opt[i].is_exited)) {
-                    pthread_join(th_clienti[i], NULL);
+                    PTHREAD_CALL(error, pthread_join(th_clienti[i], NULL));
                     /* setto solo variabili che identificano un thread */
                     clienti_opt[i].stato_cliente = ENTRATO;
                     *(clienti_opt[i].is_authorized) = false;
@@ -286,7 +285,7 @@ int main(int argc, char** argv) {
         }
         if (mutex_unlock(&exit_mutex) != 0) {
             LOG_CRITICAL;
-            goto cleanup;
+            kill(pid, SIGUSR1);
         }
     }
 
@@ -298,7 +297,6 @@ int main(int argc, char** argv) {
     }
     PTHREAD_CALL(error, pthread_join(th_direttore, NULL));
 
-cleanup:
     /* deallocazione mutex, var. condizione e attributi */
     pthread_mutex_destroy(&main_mutex);
     pthread_mutex_destroy(&quit_mutex);

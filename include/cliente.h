@@ -9,6 +9,7 @@
 /* stati di un cliente */
 typedef enum _cliente_state {
     ENTRATO,        /* entrato nel supermercato */
+    IN_CODA,        /* il cliente si è messo in coda */
     FINITO_CASSA,   /* finito alla cassa, deve uscire */
     CAMBIA_CASSA,   /* la cassa ha chiuso, la deve cambiare */
     USCITA_SEGNALE, /* c'è stata un'emergenza, esci */

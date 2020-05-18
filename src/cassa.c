@@ -55,7 +55,7 @@ void* cassa(void* arg) {
          * -> esce senza far nulla
         */
         if (temp_cliente == END_OF_SERVICE) {
-            pthread_exit((void*)0);
+            break;
         }
 
         cliente_opt_t* cliente = (cliente_opt_t*)temp_cliente;
@@ -69,10 +69,10 @@ void* cassa(void* arg) {
 
             /* per valutare il tempo che intercorre tra una notifica ed un'altra */
             clock_gettime(CLOCK_MONOTONIC, &tend);
-            LOG_DEBUG("notify sent after %.5f seconds",
+            /*LOG_DEBUG("cassa %d - notify sent after %.5f seconds", cassa->id_cassa
                       ((double)tend.tv_sec + 1.0e-9 * tend.tv_nsec) -
                           ((double)tstart.tv_sec + 1.0e-9 * tstart.tv_nsec));
-            tstart = tend;
+            */tstart = tend;
 
             t_servizio -= t_notifica;
             t_notifica = cassa->intervallo_notifica;
@@ -93,11 +93,8 @@ static bool check_continue(cassa_opt_t* cassa, cassa_state_t* stato){
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-    if (*stato == IN_CHIUSURA) {
-        libera_cassa(cassa, IN_CHIUSURA);
-        *stato = CHIUSA;
-    }
     while (*stato == CHIUSA) {
+        libera_cassa(cassa, CHIUSA);
         if (cond_wait(cassa->cond, cassa->main_mutex) != 0) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
@@ -143,7 +140,7 @@ static void libera_cassa(cassa_opt_t* cassa, cassa_state_t stato) {
         }
         if (tmp_cliente == END_OF_SERVICE) break;
         cliente_opt_t* cliente = (cliente_opt_t*)tmp_cliente;
-        if (stato == IN_CHIUSURA) {
+        if (stato == CHIUSA) {
             set_stato_cliente(cliente, CAMBIA_CASSA);
         } else if (stato == CHIUSURA_SUPERMERCATO) {
             int t_servizio = cassa->tempo_fisso + cassa->tempo_prodotto * cliente->num_prodotti;
