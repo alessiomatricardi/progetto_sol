@@ -1,5 +1,6 @@
 /*
- * struttura dati boundered queue, realizzata attraverso array circolare
+ * struttura dati boundered queue CONCORRENTE,
+ * realizzata attraverso array circolare
  * la seguente struttura dati non alloca nè dealloca gli elementi
  * che vi vengono inseriti. Queste devono essere effettuate al di fuori
  * e devono essere indipendenti dalla struttura dati.

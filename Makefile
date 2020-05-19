@@ -23,10 +23,10 @@ EXE			= $(BINDIR)/supermercato
 $(SRCDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) -c -o $@ $<
 
-$(EXE): $(SRCDIR)/supermercato.c $(LIBDIR)/libstructure.a $(SRCDIR)/signal_handler.o $(SRCDIR)/cliente.o $(SRCDIR)/cassa.o $(SRCDIR)/direttore.o $(SRCDIR)/parsing.o $(SRCDIR)/util.o 
+$(EXE): $(SRCDIR)/supermercato.c $(LIBDIR)/libstructure.a $(SRCDIR)/signal_handler.o $(SRCDIR)/cliente.o $(SRCDIR)/cassa.o $(SRCDIR)/direttore.o $(SRCDIR)/parsing.o $(SRCDIR)/util.o $(SRCDIR)/filestat.o
 	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) $^ -o $@ $(LDFLAGS) $(LIBS)
 
-$(LIBDIR)/libstructure.a: $(SRCDIR)/bqueue.o $(SRCDIR)/icl_hash.o
+$(LIBDIR)/libstructure.a: $(SRCDIR)/bqueue.o $(SRCDIR)/icl_hash.o $(SRCDIR)/queue.o
 	$(AR) $(ARFLAGS) $@ $^
 	
 all: $(EXE)

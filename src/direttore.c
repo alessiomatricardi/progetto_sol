@@ -83,8 +83,8 @@ static void controlla_casse(direttore_opt_t* direttore, unsigned seed) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-
-    int to_open_rand = rand_r(&seed) % (direttore->casse_tot - *(direttore->num_casse_attive));
+    int num_casse_chiuse = direttore->casse_tot - *(direttore->num_casse_attive);
+    int to_open_rand = num_casse_chiuse > 0 ? rand_r(&seed) % num_casse_chiuse : -1;
     int to_close_rand = rand_r(&seed) % *(direttore->num_casse_attive);
 
     for (size_t i = 0; i < direttore->casse_tot; i++) {

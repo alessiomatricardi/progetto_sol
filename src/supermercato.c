@@ -2,9 +2,10 @@
 #include <cassa.h>
 #include <cliente.h>
 #include <direttore.h>
-#include <errno.h>
+#include <filestat.h>
 #include <logger.h>
 #include <parsing.h>
+#include <queue.h>
 #include <signal.h>
 #include <signal_handler.h>
 #include <stdio.h>
@@ -30,19 +31,24 @@ pid_t pid;
 
 /* funzione di lettura dei parametri passati da terminale */
 static int set_config_filename(char* config_filename, int argc, char** argv) {
-    int opt;
-    if ((opt = getopt(argc, argv, ACCEPTABLE_OPTIONS)) != -1) {
-        switch (opt) {
-            case 'c':
-                if (sscanf(optarg, "%255[^\n]", config_filename) != 1) {
-                    fprintf(stderr, "Lettura filename fallita\n");
+    if (argc == 3) {
+        int opt;
+        if ((opt = getopt(argc, argv, ACCEPTABLE_OPTIONS)) != -1) {
+            switch (opt) {
+                case 'c':
+                    if (sscanf(optarg, "%255[^\n]", config_filename) != 1) {
+                        fprintf(stderr, "Lettura filename fallita\n");
+                        return -1;
+                    }
+                    return 0;
+                default:
+                    fprintf(stderr, "Opzione -%c non valida\n", (char)optopt);
                     return -1;
-                }
-                return 0;
-            default:
-                fprintf(stderr, "Opzione -%c non valida\n", (char)optopt);
-                return -1;
+            }
         }
+    } else {
+        strncpy(config_filename, DEFAULT_CONFIG_FILENAME, strlen(DEFAULT_CONFIG_FILENAME) + 1);
+        return 0;
     }
     return -1;
 }
@@ -61,6 +67,10 @@ int main(int argc, char** argv) {
     }
     /* salva id del processo */
     pid = getpid();
+    if (write_pid(pid) == -1) {
+        fprintf(stderr, "Non è stato possibile salvare l'id del processo.\n");
+        return EXIT_FAILURE;
+    }
 
     if (argc != 3 && argc != 1) {
         printf("Usage: %s -c <config file>\n", argv[0]);
@@ -69,12 +79,8 @@ int main(int argc, char** argv) {
     }
     /* set file name del config */
     char config_filename[MAX_CONFIG_FILENAME] = {'\0'};
-    if (argc == 3) {
-        if (set_config_filename(config_filename, argc, argv) == -1) {
-            return EXIT_FAILURE;
-        }
-    } else {
-        strncpy(config_filename, DEFAULT_CONFIG_FILENAME, strlen(DEFAULT_CONFIG_FILENAME) + 1);
+    if (set_config_filename(config_filename, argc, argv) == -1) {
+        return EXIT_FAILURE;
     }
     /* caricamento del file di config in struct dedicata */
     config_t config;
@@ -94,6 +100,11 @@ int main(int argc, char** argv) {
     LOG_DEBUG("C = %d", config.c_max);
     LOG_DEBUG("E = %d", config.e);
     LOG_DEBUG("LOG FILENAME = %s", config.log_file_name);
+
+    if (write_log_filename(config.log_file_name) == -1) {
+        fprintf(stderr, "Non è stato possibile salvare il nome del file di log\n");
+        return EXIT_FAILURE;
+    }
 
     /* strutture dati da utilizzare */
     sig_handler_opt_t sig_hand_opt;                   /* struttura del signal handler */
@@ -134,6 +145,10 @@ int main(int argc, char** argv) {
     volatile sig_atomic_t casse_partite = false;  /* informa il direttore quando le casse sono tutte "partite" */
     unsigned seed_direttore = time(NULL);
 
+    /* code per salvataggio su log */
+    Queue_t* stat_clienti;
+    Queue_t* stat_casse;
+
     /* inizializzazione mutex */
     PTHREAD_CALL(error, pthread_mutex_init(&main_mutex, NULL));
     PTHREAD_CALL(error, pthread_mutex_init(&quit_mutex, NULL));
@@ -161,6 +176,14 @@ int main(int argc, char** argv) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
+    }
+    if (CHECK_NULL(stat_clienti = initQueue())) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
+    }
+    if (CHECK_NULL(stat_casse = initQueue())) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
     }
 
     /*inizializzazione altre variabili */
@@ -297,6 +320,9 @@ int main(int argc, char** argv) {
     }
     PTHREAD_CALL(error, pthread_join(th_direttore, NULL));
 
+    /* salvataggio su file di log */
+    print_to_log(config.log_file_name, stat_clienti, stat_casse);
+
     /* deallocazione mutex, var. condizione e attributi */
     pthread_mutex_destroy(&main_mutex);
     pthread_mutex_destroy(&quit_mutex);
@@ -319,6 +345,10 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < config.k_tot; i++) {
         if (code_casse[i]) delete_BQueue(code_casse[i], NULL);
     }
+    if (stat_clienti) deleteQueue(stat_clienti, free);
+    if (stat_casse) deleteQueue(stat_casse, free);
+
+    fprintf(stdout, "CHIUSO!\n");
 
     return 0;
 }
