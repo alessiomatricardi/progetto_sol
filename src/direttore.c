@@ -32,6 +32,9 @@ void* direttore(void* arg) {
 
     unsigned seed = direttore->seed;
 
+    /* cerca di contenere la chiusura immediata di tutte le casse perchè ancora vuote */
+    msleep(1000);
+
     while (1) {
         // controlla stato
         res = check_apertura(direttore, stato);
@@ -78,6 +81,7 @@ static void controlla_casse(direttore_opt_t* direttore, unsigned seed) {
     bool is_verified_soglia2 = false;
     int to_open_index = -1;
     int to_close_index = -1;
+    int to_close_num_clienti = direttore->num_clienti;
 
     if (mutex_lock(direttore->main_mutex) != 0) {
         LOG_CRITICAL;
@@ -85,16 +89,15 @@ static void controlla_casse(direttore_opt_t* direttore, unsigned seed) {
     }
     int num_casse_chiuse = direttore->casse_tot - *(direttore->num_casse_attive);
     int to_open_rand = num_casse_chiuse > 0 ? rand_r(&seed) % num_casse_chiuse : -1;
-    int to_close_rand = rand_r(&seed) % *(direttore->num_casse_attive);
 
     for (size_t i = 0; i < direttore->casse_tot; i++) {
         if (*(direttore->casse[i].stato_cassa) == APERTA) {
-            if (to_close_rand == 0) {
-                to_close_index = i;
-            }
-            to_close_rand--;
             if (queue_notify[i] <= 1) {
                 count_s1++;
+                if(queue_notify[i] < to_close_num_clienti) {
+                    to_close_num_clienti = queue_notify[i];
+                    to_close_index = i;
+                }
             } else if (queue_notify[i] >= soglia2) {
                 is_verified_soglia2 = true;
             }
@@ -150,11 +153,6 @@ static void chiudi_casse(direttore_opt_t* direttore, direttore_state_t* stato) {
     }
     for (size_t i = 0; i < direttore->casse_tot; i++) {
         *(direttore->casse[i].stato_cassa) = nuovo_stato_cassa;
-
-        if (push(direttore->casse[i].coda, END_OF_SERVICE) != 0) {
-            LOG_CRITICAL;
-            kill(pid, SIGUSR1);
-        }
 
         if (cond_signal(direttore->casse[i].cond) != 0) {
             LOG_CRITICAL;

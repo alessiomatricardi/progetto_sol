@@ -2,7 +2,6 @@
 #define CASSA_H
 #include <bqueue.h>
 
-#define END_OF_SERVICE (void*)0x01
 #define MIN_TF_CASSA 20
 #define MAX_TF_CASSA 80
 

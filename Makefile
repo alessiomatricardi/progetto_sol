@@ -32,11 +32,15 @@ $(LIBDIR)/libstructure.a: $(SRCDIR)/bqueue.o $(SRCDIR)/icl_hash.o $(SRCDIR)/queu
 all: $(EXE)
 
 test:
+	./supermercato &
+	sleep 5
+	kill -s quit `cat ./var/run/sm.pid`
+	echo "done"
 
 clean:
 	-rm -f $(EXE)
 	clear
-cleanall	: clean
+cleanall: clean
 	\rm -f $(SRCDIR)/*.o $(LIBDIR)/*.a *~
 	clear
 

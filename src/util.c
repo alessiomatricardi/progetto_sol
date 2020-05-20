@@ -50,6 +50,15 @@ int cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex) {
     return 0;
 }
 
+int cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex, struct timespec* ts) {
+    int err = 0;
+    if ((err = pthread_cond_timedwait(cond, mutex, ts)) != 0) {
+        errno = err;
+        return -1;
+    }
+    return 0;
+}
+
 int cond_signal(pthread_cond_t* cond) {
     int err = 0;
     if ((err = pthread_cond_signal(cond)) != 0) {

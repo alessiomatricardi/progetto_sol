@@ -16,7 +16,7 @@ static char* levelname(enum __loglevel level) {
 }
 
 #ifndef DEBUG
-#define DEBUG 1
+#define DEBUG 0
 #endif /* DEBUG */
 
 #ifndef LOG_OUTFILE

@@ -27,3 +27,6 @@ coda di clienti da riattivare quando arriviamo a c-e
 https://stackoverflow.com/questions/1157209/is-there-an-alternative-sleep-function-in-c-to-milliseconds
 
 https://icevanila.com/question/memory-leaks-in-pthread-even-if-the-state-is-detached
+
+https://stackoverflow.com/questions/3523442/difference-between-clock-realtime-and-clock-monotonic
+https://nxmnpg.lemoda.net/3/pthread_cond_timedwait

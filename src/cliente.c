@@ -103,8 +103,9 @@ static void vai_in_coda(cliente_opt_t* cliente, int* scelta, unsigned* seed) {
                     cliente->stato_cliente = IN_CODA;
                     LOG_DEBUG("cliente %d in cassa %d", cliente->id_cliente, *scelta);
                     break;
-                } else
+                } else {
                     tmp--;
+                }
             }
         }
     } else
@@ -172,7 +173,7 @@ static void avverti_supermercato(cliente_opt_t* cliente) {
     }
     *(cliente->is_exited) = true;
     *(cliente->num_exited) += 1;
-    //LOG_DEBUG("clienti usciti %d", *(cliente->num_exited));
+    LOG_DEBUG("clienti usciti %d", *(cliente->num_exited));
     if (mutex_unlock(cliente->exit_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);

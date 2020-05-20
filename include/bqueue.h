@@ -14,6 +14,8 @@
 #include <stdlib.h>
 #include <util.h>
 
+#define NOMORECLIENTS (void*)0x01
+
 struct bqueue_s;
 typedef struct bqueue_s BQueue_t;
 
@@ -52,9 +54,12 @@ int push(BQueue_t* q, void* data);
  * estrae un elemento dalla coda
  * 
  * @param q puntatore alla coda
+ * @param ts tempo assoluto di fine attesa
+ * 
  * @return puntatore al dato da restituire
+ * @return NOMORECLIENTS se non ci sono clienti nella coda dopo l'attesa di ts
 */
-void* pop(BQueue_t* q);
+void* pop(BQueue_t* q, struct timespec* ts);
 
 /**
  * restituisce la dimensione attuale della coda

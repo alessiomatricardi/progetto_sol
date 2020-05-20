@@ -34,6 +34,7 @@ int mutex_unlock(pthread_mutex_t* mutex);
 
 /**
  * rilascia mutex e mette il thread in pausa
+ * fino a che non viene chiamata una pthread_cond_signal su cond 
  * 
  * @param cond condition variable
  * @param mutex mutex
@@ -41,6 +42,19 @@ int mutex_unlock(pthread_mutex_t* mutex);
  * @return -1 if failure, sets errno
 */
 int cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex);
+
+/**
+ * rilascia mutex e mette il thread in pausa
+ * fino a che non viene chiamata una pthread_cond_signal su cond
+ * oppure arriva il momento di svegliarsi
+ * 
+ * @param cond condition variable
+ * @param mutex mutex
+ * @param ts absolute time
+ * @return 0 if success
+ * @return -1 if failure, sets errno
+*/
+int cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex, struct timespec* ts);
 
 /**
  * riattiva un thread che aveva fatto una wait su cond
