@@ -1,5 +1,6 @@
 #ifndef CASSA_H
 #define CASSA_H
+#include <bool.h>
 #include <bqueue.h>
 #include <queue.h>
 
@@ -17,12 +18,13 @@ typedef enum _cassa_state {
 typedef struct _cassa {
     /* variabili mutabili */
 
-    pthread_mutex_t* main_mutex;   /* mutex principale */
-    cassa_state_t* stato_cassa;    /* stato attuale della cassa */
-    pthread_cond_t* cond;          /* var. condizione per attesa di essere aperta */
-    BQueue_t* coda;                /* coda della cassa */
-    pthread_mutex_t* notify_mutex; /* mutex dedicata all'invio delle notifiche */
-    int* queue_size_notify;        /* puntatore dove salvare la grandezza attuale della coda */
+    pthread_mutex_t* main_mutex; /* mutex principale */
+    cassa_state_t* stato_cassa;  /* stato attuale della cassa */
+    pthread_cond_t* cond;        /* var. condizione per attesa di essere aperta */
+    BQueue_t* coda;              /* coda della cassa */
+    pthread_cond_t* notify_cond; /* var. condizione su cui il direttore aspetta che tutti abbiano notificato */
+    int* notify_size;            /* puntatore dove salvare la grandezza attuale della coda */
+    bool* notify_sent;           /* puntatore dove i cassieri dicono di aver notificato */
     /* variabili immutabili */
 
     int id_cassa;            /* id della cassa */

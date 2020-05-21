@@ -42,9 +42,10 @@ typedef struct _cliente {
     unsigned seed;      /* seed per randomizzazione cassa scelta */
     /* variabili utili per log */
 
-    double t_permanenza;  /* tempo totale di permanenza nel supermercato */
-    double t_attesa_coda; /* tempo totale di attesa in coda */
-    int num_cambi_coda;   /* numero di volte che ha dovuto cambiare la coda */
+    double t_permanenza;                /* tempo totale di permanenza nel supermercato */
+    struct timespec tstart_attesa_coda; /* quando il cliente si mette in coda */
+    struct timespec tend_attesa_coda;   /* quando il cliente viene servito */
+    int num_cambi_coda;                 /* numero di volte che ha dovuto cambiare la coda */
 } cliente_opt_t;
 
 /*

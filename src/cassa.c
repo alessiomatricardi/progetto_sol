@@ -14,8 +14,8 @@
 /* pid del processo */
 extern pid_t pid;
 
-/* per informare i cassieri quando è il momento di chiudere definitivamente */
-extern volatile sig_atomic_t cashier_should_quit;
+/* per informare cassieri e direttore quando è il momento di chiudere definitivamente */
+extern volatile int should_quit;
 
 static void add_abs_time(struct timespec* ts, int msec) {
     clock_gettime(CLOCK_MONOTONIC, ts);
@@ -80,14 +80,22 @@ void* cassa(void* arg) {
             continue;
         }
         cliente_opt_t* cliente = (cliente_opt_t*)temp_cliente;
+        clock_gettime(CLOCK_MONOTONIC, &cliente->tend_attesa_coda);
 
         /* ricalcolo t_notifica */
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
         double msec_diff = SEC_TO_MSEC * spec_difftime(now, ts_notifica);
         t_notifica = (int)msec_diff + ((msec_diff - (int)msec_diff) > 0);
-
+        if (mutex_lock(cliente->mutex_cliente) != 0) {
+            LOG_CRITICAL;
+            kill(pid, SIGUSR1);
+        }
         int t_servizio = cassa->tempo_fisso + cassa->tempo_prodotto * cliente->num_prodotti;
+        if (mutex_unlock(cliente->mutex_cliente) != 0) {
+            LOG_CRITICAL;
+            kill(pid, SIGUSR1);
+        }
         if (CHECK_NULL(t_serv = malloc(sizeof(int)))) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
@@ -128,7 +136,7 @@ check_apertura(cassa_opt_t* cassa, cassa_state_t* stato, struct timespec* tstart
         libera_cassa(cassa);
         cassa->num_chiusure++;
         clock_gettime(CLOCK_MONOTONIC, &tend_apertura);
-        double *t_apertura;
+        double* t_apertura;
         if (CHECK_NULL(t_apertura = malloc(sizeof(double)))) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
@@ -198,7 +206,7 @@ static void chiusura_definitiva(cassa_opt_t* cassa, cassa_state_t stato) {
     if (stato == TERMINA) return;
     void* tmp_cliente;
     struct timespec ts = {0, 0};
-    while (!cashier_should_quit) {
+    while (!should_quit) {
         add_abs_time(&ts, 100);
         tmp_cliente = pop(cassa->coda, &ts);
         if (CHECK_NULL(tmp_cliente)) {
@@ -207,6 +215,7 @@ static void chiusura_definitiva(cassa_opt_t* cassa, cassa_state_t stato) {
         }
         if (tmp_cliente == NOMORECLIENTS) continue;
         cliente_opt_t* cliente = (cliente_opt_t*)tmp_cliente;
+        clock_gettime(CLOCK_MONOTONIC, &cliente->tstart_attesa_coda);
         if (stato == SERVI_E_TERMINA) {
             int t_servizio = cassa->tempo_fisso + cassa->tempo_prodotto * cliente->num_prodotti;
             msleep(t_servizio);
@@ -224,19 +233,25 @@ static void invia_notifica(cassa_opt_t* cassa, struct timespec* tstart_notifica)
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-    if (mutex_lock(cassa->notify_mutex) != 0) {
+    if (mutex_lock(cassa->main_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-    *(cassa->queue_size_notify) = size;
+    *(cassa->notify_size) = size;
+    *(cassa->notify_sent) = true;
+    if (cond_signal(cassa->notify_cond) != 0) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
+    }
+    if (mutex_unlock(cassa->main_mutex) != 0) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
+    }
+
+    /* per valutare il tempo che intercorre tra una notifica ed un'altra */
     struct timespec tend_notifica = {0, 0};
     clock_gettime(CLOCK_MONOTONIC, &tend_notifica);
-    /* per valutare il tempo che intercorre tra una notifica ed un'altra */
     LOG_DEBUG("cassa %d - notify sent after %.5f seconds", cassa->id_cassa,
               spec_difftime(*tstart_notifica, tend_notifica));
     *tstart_notifica = tend_notifica;
-    if (mutex_unlock(cassa->notify_mutex) != 0) {
-        LOG_CRITICAL;
-        kill(pid, SIGUSR1);
-    }
 }

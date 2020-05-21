@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200112L
+#include <bool.h>
 #include <cassa.h>
 #include <cliente.h>
 #include <direttore.h>
@@ -13,6 +14,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <util.h>
+#include <time.h>
 
 /* macros */
 
@@ -44,24 +46,25 @@ static pthread_attr_t sh_attr; /* attributo del signal handler */
 static pthread_mutex_t main_mutex;    /* mutex principale */
 static pthread_mutex_t quit_mutex;    /* mutex riservata a supermercato, direttore e signal handler */
 static pthread_mutex_t exit_mutex;    /* mutex riservata a supermercato e clienti */
-static pthread_mutex_t notify_mutex;  /* mutex riservata a direttore e cassieri per le notifiche */
 static pthread_mutex_t* client_mutex; /* mutex personale dei clienti, protegge dati accessibili anche dalle casse */
 
 static pthread_cond_t auth_cond;    /* var. condizione autorizzazione clienti */
 static pthread_cond_t* cond_casse;  /* var. condizione casse */
 static pthread_cond_t* cond_incoda; /* var. condizione clienti, quando vanno in coda */
 static pthread_cond_t exit_cond;    /* var. condizione clienti-supermercato per segnalare uscita */
+static pthread_cond_t notify_cond;  /* var. condizione casse-direttor per l'invio delle notifiche */
 
 /* altre variabili globali */
 static config_t config;
-static int id_cliente = 0;                          /* id cliente progressivo */
-static int num_casse_attive;                        /* casse attualmente attive */
-static bool* auth_array;                            /* array autorizzazioni (clienti-direttore) */
-static bool* exit_array;                            /* array segnalazione uscita (clienti-supermercato) */
-static int exited_clients;                          /* numero di clienti usciti */
-static int* queue_notify;                           /* array per notificare grandezza coda */
-static volatile sig_atomic_t casse_partite = false; /* informa il direttore quando le casse sono tutte "partite" */
-volatile sig_atomic_t cashier_should_quit = false;  /* i cassieri possono terminare */
+static int id_cliente = 0;             /* id cliente progressivo */
+static int num_casse_attive;           /* casse attualmente attive */
+static bool* auth_array;               /* array autorizzazioni (clienti-direttore) */
+static bool* exit_array;               /* array segnalazione uscita (clienti-supermercato) */
+static int exited_clients;             /* numero di clienti usciti */
+static int* queue_notify;              /* array per notificare grandezza coda */
+static bool* notify_sent;              /* array per dire al direttore di aver notificato */
+static volatile int casse_partite = 0; /* informa il direttore quando le casse sono tutte "partite" */
+volatile int should_quit = 0;          /* i cassieri possono terminare */
 
 static bool check_apertura_supermercato(supermercato_state_t stato);
 static void init_direttore(direttore_opt_t* direttore_opt, direttore_state_t* stato, cassa_opt_t* casse);
@@ -187,7 +190,6 @@ int main(int argc, char** argv) {
     PTHREAD_CALL(error, pthread_mutex_init(&main_mutex, NULL));
     PTHREAD_CALL(error, pthread_mutex_init(&quit_mutex, NULL));
     PTHREAD_CALL(error, pthread_mutex_init(&exit_mutex, NULL));
-    PTHREAD_CALL(error, pthread_mutex_init(&notify_mutex, NULL));
     for (size_t i = 0; i < config.c_max; i++) {
         PTHREAD_CALL(error, pthread_mutex_init(&client_mutex[i], NULL));
     }
@@ -201,6 +203,7 @@ int main(int argc, char** argv) {
         PTHREAD_CALL(error, pthread_cond_init(&cond_incoda[i], NULL));
     }
     PTHREAD_CALL(error, pthread_cond_init(&exit_cond, NULL));
+    PTHREAD_CALL(error, pthread_cond_init(&notify_cond, NULL));
 
     /* inizializzazione attributi */
     PTHREAD_CALL(error, pthread_attr_init(&sh_attr));
@@ -234,11 +237,13 @@ int main(int argc, char** argv) {
     exit_array = malloc(config.c_max * sizeof(bool)); /* array segnalazione uscita (clienti-supermercato) */
     exited_clients = 0;                               /* numero di clienti usciti */
     queue_notify = malloc(config.k_tot * sizeof(int));
+    notify_sent = malloc(config.k_tot * sizeof(bool));
     for (size_t i = 0; i < config.c_max; i++) {
         auth_array[i] = exit_array[i] = false;
     }
     for (size_t i = 0; i < config.k_tot; i++) {
         queue_notify[i] = 0;
+        notify_sent[i] = false;
         stato_casse[i] = (i < config.casse_iniziali ? APERTA : CHIUSA);
     }
 
@@ -260,7 +265,7 @@ int main(int argc, char** argv) {
 
         PTHREAD_CALL(error, pthread_create(&th_casse[i], NULL, cassa, &casse_opt[i]));
     }
-    casse_partite = true;
+    casse_partite = 1;
 
     /* creazione threads clienti */
     for (size_t i = 0; i < config.c_max; i++) {
@@ -296,23 +301,25 @@ int main(int argc, char** argv) {
                     kill(pid, SIGUSR1);
                 }
                 init_cliente(clienti_opt[i], i, stato_casse, code_casse);
-                *(clienti_opt[i]->is_authorized) = false;
                 *(clienti_opt[i]->is_exited) = false;
+                *(clienti_opt[i]->is_authorized) = false;
 
                 PTHREAD_CALL(error, pthread_create(&th_clienti[i], NULL, cliente, clienti_opt[i]));
+                if (--exited_clients == 0) break;
             }
         }
-        exited_clients -= config.e;
         if (mutex_unlock(&exit_mutex) != 0) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
     }
+    for (size_t i = 0; i < config.c_max; i++) {
+    }
 
     for (size_t i = 0; i < config.c_max; i++) {
         PTHREAD_CALL(error, pthread_join(th_clienti[i], NULL));
     }
-    cashier_should_quit = true;
+    should_quit = 1;
     for (size_t i = 0; i < config.k_tot; i++) {
         PTHREAD_CALL(error, pthread_join(th_casse[i], NULL));
     }
@@ -373,12 +380,14 @@ static void init_direttore(direttore_opt_t* direttore_opt, direttore_state_t* st
     direttore_opt->quit_mutex = &quit_mutex;
     direttore_opt->stato_direttore = stato;
     direttore_opt->main_mutex = &main_mutex;
+    direttore_opt->th_casse = th_casse;
     direttore_opt->casse = casse;
     direttore_opt->auth_cond = &auth_cond;
     direttore_opt->auth_array = auth_array;
     direttore_opt->num_casse_attive = &num_casse_attive;
-    direttore_opt->notify_mutex = &notify_mutex;
+    direttore_opt->notify_cond = &notify_cond;
     direttore_opt->queue_notify = queue_notify;
+    direttore_opt->notify_sent = notify_sent;
     direttore_opt->num_clienti = config.c_max;
     direttore_opt->num_casse_tot = config.k_tot;
     direttore_opt->soglia_1 = config.s1;
@@ -391,8 +400,9 @@ static void init_cassa(cassa_opt_t* cassa_opt, size_t pos, cassa_state_t* stato,
     cassa_opt->stato_cassa = stato;
     cassa_opt->cond = &cond_casse[pos];
     cassa_opt->coda = coda;
-    cassa_opt->notify_mutex = &notify_mutex;
-    cassa_opt->queue_size_notify = &queue_notify[pos];
+    cassa_opt->notify_cond = &notify_cond;
+    cassa_opt->notify_size = &queue_notify[pos];
+    cassa_opt->notify_sent = &notify_sent[pos];
     cassa_opt->id_cassa = pos;
     unsigned seed = (pos + 1) * time(NULL);
     int t_fisso = rand_r(&seed) % (MAX_TF_CASSA - MIN_TF_CASSA + 1) + MIN_TF_CASSA;
@@ -434,6 +444,7 @@ static void init_cliente(cliente_opt_t* cliente_opt, size_t pos, cassa_state_t* 
     cliente_opt->num_casse_tot = config.k_tot;
     cliente_opt->seed = seed;
     cliente_opt->t_permanenza = 0;
-    cliente_opt->t_attesa_coda = 0;
+    cliente_opt->tstart_attesa_coda = (struct timespec) { .tv_sec = 0, .tv_nsec = 0};
+    cliente_opt->tend_attesa_coda = (struct timespec){.tv_sec = 0, .tv_nsec = 0};
     cliente_opt->num_cambi_coda = 0;
 }

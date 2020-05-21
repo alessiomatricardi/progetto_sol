@@ -4,10 +4,13 @@
 #include <string.h>
 #include <util.h>
 
-#define UPDATE_SECONDS 1
+#define UPDATE_SECONDS 2
 
 /* pid del processo */
 extern pid_t pid;
+
+/* per informare cassieri e direttore quando è il momento di chiudere definitivamente */
+extern volatile int should_quit;
 
 static bool check_apertura(direttore_opt_t* direttore, direttore_state_t* stato);
 static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_time);
@@ -39,7 +42,6 @@ void* direttore(void* arg) {
         res = check_apertura(direttore, stato);
         if (!res) break;
 
-        msleep(200);
         // controlla notifiche, se necessario apri/chiudi cassa
         controlla_casse(direttore, update_time);
 
@@ -48,6 +50,11 @@ void* direttore(void* arg) {
     }
     /* chiudi tutte le casse */
     chiudi_casse(direttore, stato);
+    while (!should_quit) {
+        msleep(200);
+        // risveglia eventuali clienti che attendono autorizzazione per uscire
+        autorizza_uscita(direttore->auth_array, direttore->num_clienti, direttore->main_mutex, direttore->auth_cond);
+    }
 
     return NULL;
 }
@@ -84,10 +91,28 @@ static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_
     int to_close_num_clienti = direttore->num_clienti;
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
-
-    if (mutex_lock(direttore->notify_mutex) != 0) {
+    bool check_casse;
+    //msleep(200);
+    if (mutex_lock(direttore->main_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
+    }
+    do {
+        check_casse = true;
+        for (size_t i = 0; i < direttore->num_casse_tot; i++) {
+            if (*(direttore->casse[i].stato_cassa) == APERTA && !direttore->notify_sent[i]) {
+                check_casse = false;
+            }
+        }
+        if (!check_casse) {
+            if (cond_wait(direttore->notify_cond, direttore->main_mutex) != 0) {
+                LOG_CRITICAL;
+                kill(pid, SIGUSR1);
+            }
+        }
+    } while (!check_casse);
+    for (size_t i = 0; i < direttore->num_casse_tot; i++) {
+        direttore->notify_sent[i] = false;
     }
     for (size_t i = 0; i < direttore->num_casse_tot; i++) {
         if (*(direttore->casse[i].stato_cassa) == APERTA) {
@@ -108,17 +133,17 @@ static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_
             }
         }
     }
-    if (mutex_unlock(direttore->notify_mutex) != 0) {
+    is_verified_soglia1 = count_s1 >= soglia1 && to_close_index != -1 && *(direttore->num_casse_attive) > MIN_CASSE_APERTE;
+
+    if (mutex_unlock(direttore->main_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
 
-    if (count_s1 >= soglia1 && to_close_index != -1) is_verified_soglia1 = true;
-
-    if(is_verified_soglia1 && is_verified_soglia2) return;
+    if (is_verified_soglia1 && is_verified_soglia2) return;
 
     // chiudo una cassa, se possibile
-    if (is_verified_soglia1 && *(direttore->num_casse_attive) > MIN_CASSE_APERTE) {
+    if (is_verified_soglia1) {
         if (mutex_lock(direttore->main_mutex) != 0) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);

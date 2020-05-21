@@ -10,6 +10,8 @@
 /* pid del processo */
 extern pid_t pid;
 
+static void set_stato(cliente_opt_t* cliente, cliente_state_t stato);
+static cliente_state_t get_stato(cliente_opt_t* cliente);
 static void vai_in_coda(cliente_opt_t* cliente, int* scelta, unsigned* seed);
 static void attendi_turno(cliente_opt_t* cliente);
 static void uscita_senza_acquisti(cliente_opt_t* cliente);
@@ -30,16 +32,16 @@ void* cliente(void* arg) {
 
     cliente_opt_t* cliente = (cliente_opt_t*)arg;
 
-    struct timespec tstart_permanenza = {0,0};
+    struct timespec tstart_permanenza = {0, 0};
     struct timespec tend_permanenza = {0, 0};
     clock_gettime(CLOCK_MONOTONIC, &tstart_permanenza);
 
     /* fai acquisti */
     msleep(cliente->tempo_acquisti);
-
-    cliente_state_t* stato = &(cliente->stato_cliente);
+    set_stato(cliente, IN_CODA);
     int cassa_scelta = CASSA_NOT_FOUND;
     unsigned seed = cliente->seed;
+    clock_gettime(CLOCK_MONOTONIC, &cliente->tstart_attesa_coda);
 
     if (cliente->num_prodotti > 0) {
         while (1) {
@@ -47,7 +49,7 @@ void* cliente(void* arg) {
             vai_in_coda(cliente, &cassa_scelta, &seed);
 
             if (cassa_scelta == CASSA_NOT_FOUND) {
-                *stato = USCITA_SEGNALE;
+                set_stato(cliente, USCITA_SEGNALE);
                 break;
             }
 
@@ -58,7 +60,7 @@ void* cliente(void* arg) {
              * se deve cambiare cassa, torna a scegliere la cassa
              * altrimenti può uscire dal supermercato
             */
-            if (*stato != CAMBIA_CASSA)
+            if (get_stato(cliente) != CAMBIA_CASSA)
                 break;
             else {
                 cliente->num_cambi_coda++;
@@ -66,18 +68,44 @@ void* cliente(void* arg) {
             }
         }
     } else {
-        cliente->stato_cliente = USCITA_SENZA_ACQUISTI;
         // chiedi a direttore di uscire
-        LOG_DEBUG("cliente %d esce senza acquisti", cliente->id_cliente);
+        LOG_DEBUG("cliente %d vorrebbe uscire senza acquisti", cliente->id_cliente);
         uscita_senza_acquisti(cliente);
+        LOG_DEBUG("cliente %d esce senza acquisti", cliente->id_cliente);
     }
-    LOG_DEBUG("cliente %d esce con stato %d", cliente->id_cliente, *stato);
+    LOG_DEBUG("cliente %d esce con stato %d", cliente->id_cliente, get_stato(cliente));
     clock_gettime(CLOCK_MONOTONIC, &tend_permanenza);
     cliente->t_permanenza = spec_difftime(tstart_permanenza, tend_permanenza);
     // devo dire al supermercato che sono uscito
     avverti_supermercato(cliente);
     // uscire
     return NULL;
+}
+
+static void set_stato(cliente_opt_t* cliente, cliente_state_t stato) {
+    if (mutex_lock(cliente->mutex_cliente) != 0) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
+    }
+    cliente->stato_cliente = stato;
+    if (mutex_unlock(cliente->mutex_cliente) != 0) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
+    }
+}
+
+static cliente_state_t get_stato(cliente_opt_t* cliente) {
+    cliente_state_t stato = ENTRATO;
+    if (mutex_lock(cliente->mutex_cliente) != 0) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
+    }
+    stato = cliente->stato_cliente;
+    if (mutex_unlock(cliente->mutex_cliente) != 0) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
+    }
+    return stato;
 }
 
 /**
@@ -108,7 +136,6 @@ static void vai_in_coda(cliente_opt_t* cliente, int* scelta, unsigned* seed) {
                         kill(pid, SIGUSR1);
                     }
                     *scelta = i;
-                    cliente->stato_cliente = IN_CODA;
                     LOG_DEBUG("cliente %d in cassa %d", cliente->id_cliente, *scelta);
                     break;
                 } else {
@@ -130,20 +157,15 @@ static void vai_in_coda(cliente_opt_t* cliente, int* scelta, unsigned* seed) {
  * @param cliente puntatore alla struttura dati del cliente 
 */
 static void attendi_turno(cliente_opt_t* cliente) {
-    struct timespec tstart_attesacoda = {0, 0};
-    struct timespec tend_attesacoda = {0, 0};
     if (mutex_lock(cliente->mutex_cliente) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
     while (cliente->stato_cliente == IN_CODA) {
-        clock_gettime(CLOCK_MONOTONIC, &tstart_attesacoda);
         if (cond_wait(cliente->cond_incoda, cliente->mutex_cliente) != 0) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
-        clock_gettime(CLOCK_MONOTONIC, &tend_attesacoda);
-        cliente->t_attesa_coda += spec_difftime(tstart_attesacoda, tend_attesacoda);
     }
     if (mutex_unlock(cliente->mutex_cliente) != 0) {
         LOG_CRITICAL;
@@ -157,7 +179,7 @@ static void attendi_turno(cliente_opt_t* cliente) {
  * @param cliente puntatore alla struttura dati del cliente
 */
 static void uscita_senza_acquisti(cliente_opt_t* cliente) {
-    // fai la wait
+    set_stato(cliente, USCITA_SENZA_ACQUISTI);
     if (mutex_lock(cliente->main_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);

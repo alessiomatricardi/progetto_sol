@@ -21,19 +21,21 @@ typedef struct _direttore {
     pthread_mutex_t* quit_mutex;        /* mutex per modificare stato del direttore */
     direttore_state_t* stato_direttore; /* stato attuale del direttore */
     pthread_mutex_t* main_mutex;        /* mutex principale */
+    pthread_t* th_casse;                /* threads casse */
     cassa_opt_t* casse;                 /* array di casse */
     pthread_cond_t* auth_cond;          /* var. condizione per autorizzare i clienti */
     bool* auth_array;                   /* array delle autorizzazioni */
     int* num_casse_attive;              /* numero attuale delle casse attive */
-    pthread_mutex_t* notify_mutex;      /* mutex dedicata alla ricezione delle notifiche */
+    pthread_cond_t* notify_cond;        /* var. condizione su cui il direttore aspetta che tutti abbiano notificato */
     int* queue_notify;                  /* array dove ogni cassa scrive il numero dei clienti in coda */
+    bool* notify_sent;                  /* array dove i cassieri dicono di aver notificato */
     /* variabili immutabili */
-    
-    int num_clienti;                      /* numero massimo di clienti */
-    int num_casse_tot;                    /* numero totale di casse */
-    int soglia_1;                         /* soglia1 */
-    int soglia_2;                         /* soglia2 */
-    volatile sig_atomic_t* casse_partite; /* se le casse non sono tutte partite, il direttore non controlla le notifiche */
+
+    int num_clienti;             /* numero massimo di clienti */
+    int num_casse_tot;           /* numero totale di casse */
+    int soglia_1;                /* soglia1 */
+    int soglia_2;                /* soglia2 */
+    volatile int* casse_partite; /* se le casse non sono tutte partite, il direttore non controlla le notifiche */
 } direttore_opt_t;
 
 void* direttore(void* arg);
