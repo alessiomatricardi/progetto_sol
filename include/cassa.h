@@ -1,29 +1,40 @@
 #ifndef CASSA_H
 #define CASSA_H
 #include <bqueue.h>
+#include <queue.h>
 
 #define MIN_TF_CASSA 20
 #define MAX_TF_CASSA 80
 
 typedef enum _cassa_state {
-    APERTA,                          /* cassa regolarmente aperta */
-    CHIUSA,                          /* la cassa è attualmente chiusa */
-    CHIUSURA_SUPERMERCATO,           /* la cassa deve servire tutti i clienti in coda e chiudere */
-    CHIUSURA_IMMEDIATA_SUPERMERCATO, /* la cassa deve far uscire tutti i clienti */
+    APERTA,                /* cassa regolarmente aperta */
+    CHIUSA,                /* la cassa è attualmente chiusa */
+    TERMINA,               /* la cassa era chiusa e viene chiuso il supermercato */
+    SERVI_E_TERMINA,       /* la cassa era aperta e deve servire tutti i clienti in coda e chiudere */
+    NON_SERVIRE_E_TERMINA, /* la cassa era aperta e deve far uscire tutti i clienti */
 } cassa_state_t;
 
 typedef struct _cassa {
     /* variabili mutabili */
-    pthread_mutex_t* main_mutex; /* mutex principale */
-    cassa_state_t* stato_cassa;  /* stato attuale della cassa */
-    pthread_cond_t* cond;        /* var. condizione per attesa di essere aperta */
-    BQueue_t* coda;              /* coda della cassa */
-    int* queue_size_notify;      /* puntatore dove salvare la grandezza attuale della coda */
+
+    pthread_mutex_t* main_mutex;   /* mutex principale */
+    cassa_state_t* stato_cassa;    /* stato attuale della cassa */
+    pthread_cond_t* cond;          /* var. condizione per attesa di essere aperta */
+    BQueue_t* coda;                /* coda della cassa */
+    pthread_mutex_t* notify_mutex; /* mutex dedicata all'invio delle notifiche */
+    int* queue_size_notify;        /* puntatore dove salvare la grandezza attuale della coda */
     /* variabili immutabili */
+
     int id_cassa;            /* id della cassa */
     int tempo_fisso;         /* tempo fisso impiegato per ogni cliente */
     int tempo_prodotto;      /* tempo variabile speso per ogni prodotto */
     int intervallo_notifica; /* tempo che intercorre tra una notifica e l'altra */
+    /* variabili utili per log */
+
+    int num_clienti_serviti;    /* numero di clienti serviti */
+    Queue_t* tempi_apertura;    /* lista dei tempi di apertura */
+    int num_chiusure;           /* numero di chiusure */
+    Queue_t* t_clienti_serviti; /* tempo di servizio di ogni cliente servito */
 } cassa_opt_t;
 
 void* cassa(void* arg);

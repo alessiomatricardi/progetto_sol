@@ -4,6 +4,12 @@
 #include <time.h>
 #include <util.h>
 
+double spec_difftime(const struct timespec start, const struct timespec end) {
+    double s = (double)start.tv_sec + 1.0e-9 * start.tv_nsec;
+    double e = (double)end.tv_sec + 1.0e-9 * end.tv_nsec;
+    return e - s;
+}
+
 int msleep(long msec) {
     struct timespec ts;
     int res;

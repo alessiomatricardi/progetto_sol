@@ -66,6 +66,6 @@ void* signal_handler(void* arg) {
         }
         //printf("Ho catturato %d\n", sig);
     } while (handle_signal(sig, sig_hand));
-    
-    pthread_exit((void*)0);
+
+    return NULL;
 }

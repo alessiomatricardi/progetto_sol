@@ -29,6 +29,7 @@ int write_log_filename(const char* log_filename) {
     return 0;
 }
 
-int print_to_log(const char* filename, Queue_t* clienti, Queue_t* cassieri) {
-    // TO DO
+int print_to_log(int num_clienti, int num_prodotti,
+    Queue_t* clienti, BQueue_t* cassieri, const char* filename) {
+    
 }

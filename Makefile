@@ -34,7 +34,7 @@ all: $(EXE)
 test:
 	./supermercato &
 	sleep 5
-	kill -s quit `cat ./var/run/sm.pid`
+	kill -s hup `cat ./var/run/sm.pid`
 	echo "done"
 
 clean:

@@ -5,6 +5,15 @@
 
 #define CHECK_NULL(ptr) (ptr) == NULL
 
+/**
+ * ritorna la differenza in secondi tra due date
+ * 
+ * @param start data iniziale
+ * @param end data finale
+ * @return differenza tra le due date
+*/
+double spec_difftime(const struct timespec start, const struct timespec end);
+
 /** 
  * ferma l'esecuzione per msec millisecondi
  * 

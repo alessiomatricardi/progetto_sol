@@ -20,6 +20,9 @@
 #define E_CLIENTI "E"
 #define LOG_FILENAME "LOG_FILENAME"
 
+/* MIN T */
+#define MIN_T 10
+
 /* grandezza della tabella hash */
 #define BUCKETS 50
 
@@ -149,8 +152,8 @@ int parse_config(const char* filename, config_t* config) {
 
     /* controlli di qualità */
     /* tutti i valori numerici sono già > 0 */
-    if (config->t_max <= 10) {
-        fprintf(stderr, "T deve essere maggiore di 10\n");
+    if (config->t_max <= MIN_T) {
+        fprintf(stderr, "T deve essere maggiore di %d\n", MIN_T);
         return -1;
     }
     if (config->e >= config->c_max) {

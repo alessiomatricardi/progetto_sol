@@ -1,6 +1,7 @@
 #ifndef FILESTAT_H
 #define FILESTAT_H
 
+#include <bqueue.h>
 #include <queue.h>
 
 #define VAR_PATH "./var"
@@ -27,6 +28,7 @@ int write_log_filename(const char* log_filename);
  * 
  * @return 0 se successo, -1 se fallisce
 */
-int print_to_log(const char* filename, Queue_t  * clienti, Queue_t * cassieri);
+int print_to_log(int num_clienti, int num_prodotti,
+                 Queue_t* clienti, BQueue_t* cassieri, const char* filename);
 
 #endif /* FILESTAT_H */

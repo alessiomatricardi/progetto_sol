@@ -4,11 +4,13 @@
 #include <string.h>
 #include <util.h>
 
+#define UPDATE_SECONDS 1
+
 /* pid del processo */
 extern pid_t pid;
 
 static bool check_apertura(direttore_opt_t* direttore, direttore_state_t* stato);
-static void controlla_casse(direttore_opt_t* direttore, unsigned seed);
+static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_time);
 static void chiudi_casse(direttore_opt_t* direttore, direttore_state_t* stato);
 static void autorizza_uscita(bool* auth_array, int num_clienti, pthread_mutex_t* mtx, pthread_cond_t* cond);
 
@@ -29,19 +31,17 @@ void* direttore(void* arg) {
     direttore_state_t* stato = direttore->stato_direttore;
 
     bool res = false;
-
-    unsigned seed = direttore->seed;
-
-    /* cerca di contenere la chiusura immediata di tutte le casse perchè ancora vuote */
-    msleep(1000);
+    struct timespec update_time[direttore->num_casse_tot];
+    memset(update_time, 0, sizeof(update_time));
 
     while (1) {
         // controlla stato
         res = check_apertura(direttore, stato);
         if (!res) break;
 
+        msleep(200);
         // controlla notifiche, se necessario apri/chiudi cassa
-        controlla_casse(direttore, seed);
+        controlla_casse(direttore, update_time);
 
         // risveglia clienti che attendono autorizzazione per uscire
         autorizza_uscita(direttore->auth_array, direttore->num_clienti, direttore->main_mutex, direttore->auth_cond);
@@ -49,7 +49,7 @@ void* direttore(void* arg) {
     /* chiudi tutte le casse */
     chiudi_casse(direttore, stato);
 
-    pthread_exit((void*)0);
+    return NULL;
 }
 
 static bool check_apertura(direttore_opt_t* direttore, direttore_state_t* stato) {
@@ -71,7 +71,7 @@ static bool check_apertura(direttore_opt_t* direttore, direttore_state_t* stato)
     return true;
 }
 
-static void controlla_casse(direttore_opt_t* direttore, unsigned seed) {
+static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_time) {
     if (!*(direttore->casse_partite)) return;
     int soglia1 = direttore->soglia_1; /* chiude una cassa se ci sono almeno SOGLIA1 casse che hanno al più un cliente */
     int soglia2 = direttore->soglia_2; /* apre una cassa (se possibile) se c’è almeno una cassa con almeno SOGLIA2 clienti in coda */
@@ -82,19 +82,18 @@ static void controlla_casse(direttore_opt_t* direttore, unsigned seed) {
     int to_open_index = -1;
     int to_close_index = -1;
     int to_close_num_clienti = direttore->num_clienti;
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
 
-    if (mutex_lock(direttore->main_mutex) != 0) {
+    if (mutex_lock(direttore->notify_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-    int num_casse_chiuse = direttore->casse_tot - *(direttore->num_casse_attive);
-    int to_open_rand = num_casse_chiuse > 0 ? rand_r(&seed) % num_casse_chiuse : -1;
-
-    for (size_t i = 0; i < direttore->casse_tot; i++) {
+    for (size_t i = 0; i < direttore->num_casse_tot; i++) {
         if (*(direttore->casse[i].stato_cassa) == APERTA) {
             if (queue_notify[i] <= 1) {
                 count_s1++;
-                if(queue_notify[i] < to_close_num_clienti) {
+                if (spec_difftime(update_time[i], now) > UPDATE_SECONDS && queue_notify[i] < to_close_num_clienti) {
                     to_close_num_clienti = queue_notify[i];
                     to_close_index = i;
                 }
@@ -102,32 +101,45 @@ static void controlla_casse(direttore_opt_t* direttore, unsigned seed) {
                 is_verified_soglia2 = true;
             }
         } else {
-            if (to_open_rand == 0) {
+            double elapsed = spec_difftime(update_time[i], now);
+            double diff = spec_difftime(update_time[to_open_index], update_time[i]);
+            if (to_open_index == -1 || (diff < 0 && elapsed > UPDATE_SECONDS)) {
                 to_open_index = i;
             }
-            to_open_rand--;
         }
     }
+    if (mutex_unlock(direttore->notify_mutex) != 0) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
+    }
 
-    if (count_s1 >= soglia1) is_verified_soglia1 = true;
+    if (count_s1 >= soglia1 && to_close_index != -1) is_verified_soglia1 = true;
 
-    // se entrambe verificate, non apro ne chiudo alcuna cassa
-    if (is_verified_soglia1 && is_verified_soglia2) {
+    if(is_verified_soglia1 && is_verified_soglia2) return;
+
+    // chiudo una cassa, se possibile
+    if (is_verified_soglia1 && *(direttore->num_casse_attive) > MIN_CASSE_APERTE) {
+        if (mutex_lock(direttore->main_mutex) != 0) {
+            LOG_CRITICAL;
+            kill(pid, SIGUSR1);
+        }
+        *(direttore->casse[to_close_index].stato_cassa) = CHIUSA;
+
+        *(direttore->num_casse_attive) -= 1;
         if (mutex_unlock(direttore->main_mutex) != 0) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
+        update_time[to_close_index] = now;
+        LOG_DEBUG("Il direttore ha chiuso la cassa %d", to_close_index);
         return;
     }
-    // chiudo una cassa, se possibile
-    if (is_verified_soglia1 && *(direttore->num_casse_attive) > 1) {
-        // chiudo l'ultima cassa segnalata da soglia1
-        *(direttore->casse[to_close_index].stato_cassa) = CHIUSA;
-
-        *(direttore->num_casse_attive) -= 1;
-        LOG_DEBUG("Ha appena chiuso la cassa %d", to_close_index);
-    } else if (is_verified_soglia2 && (*(direttore->num_casse_attive) < direttore->casse_tot)) {
-        // apro la prima cassa non aperta
+    // apro una cassa, se possibile
+    if (is_verified_soglia2 && to_open_index != -1) {
+        if (mutex_lock(direttore->main_mutex) != 0) {
+            LOG_CRITICAL;
+            kill(pid, SIGUSR1);
+        }
         *(direttore->casse[to_open_index].stato_cassa) = APERTA;
 
         if (cond_signal(direttore->casse[to_open_index].cond) != 0) {
@@ -136,27 +148,29 @@ static void controlla_casse(direttore_opt_t* direttore, unsigned seed) {
         }
 
         *(direttore->num_casse_attive) += 1;
-        LOG_DEBUG("Ha appena aperto la cassa %d", to_open_index);
-    }
-
-    if (mutex_unlock(direttore->main_mutex) != 0) {
-        LOG_CRITICAL;
-        kill(pid, SIGUSR1);
+        if (mutex_unlock(direttore->main_mutex) != 0) {
+            LOG_CRITICAL;
+            kill(pid, SIGUSR1);
+        }
+        update_time[to_open_index] = now;
+        LOG_DEBUG("Il direttore ha aperto la cassa %d", to_open_index);
     }
 }
 
 static void chiudi_casse(direttore_opt_t* direttore, direttore_state_t* stato) {
-    cassa_state_t nuovo_stato_cassa = (*stato == CHIUSURA) ? CHIUSURA_SUPERMERCATO : CHIUSURA_IMMEDIATA_SUPERMERCATO;
     if (mutex_lock(direttore->main_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-    for (size_t i = 0; i < direttore->casse_tot; i++) {
-        *(direttore->casse[i].stato_cassa) = nuovo_stato_cassa;
-
-        if (cond_signal(direttore->casse[i].cond) != 0) {
-            LOG_CRITICAL;
-            kill(pid, SIGUSR1);
+    for (size_t i = 0; i < direttore->num_casse_tot; i++) {
+        if (*(direttore->casse[i].stato_cassa) == CHIUSA) {
+            *(direttore->casse[i].stato_cassa) = TERMINA;
+            if (cond_signal(direttore->casse[i].cond) != 0) {
+                LOG_CRITICAL;
+                kill(pid, SIGUSR1);
+            }
+        } else {
+            *(direttore->casse[i].stato_cassa) = (*stato == CHIUSURA) ? SERVI_E_TERMINA : NON_SERVIRE_E_TERMINA;
         }
     }
     if (mutex_unlock(direttore->main_mutex) != 0) {

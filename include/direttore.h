@@ -17,21 +17,23 @@ typedef direttore_state_t supermercato_state_t;
 
 typedef struct _direttore {
     /* variabili mutabili */
+
     pthread_mutex_t* quit_mutex;        /* mutex per modificare stato del direttore */
     direttore_state_t* stato_direttore; /* stato attuale del direttore */
     pthread_mutex_t* main_mutex;        /* mutex principale */
     cassa_opt_t* casse;                 /* array di casse */
     pthread_cond_t* auth_cond;          /* var. condizione per autorizzare i clienti */
     bool* auth_array;                   /* array delle autorizzazioni */
-    int* queue_notify;                  /* array dove ogni cassa scrive il numero dei clienti in coda */
     int* num_casse_attive;              /* numero attuale delle casse attive */
+    pthread_mutex_t* notify_mutex;      /* mutex dedicata alla ricezione delle notifiche */
+    int* queue_notify;                  /* array dove ogni cassa scrive il numero dei clienti in coda */
     /* variabili immutabili */
+    
     int num_clienti;                      /* numero massimo di clienti */
-    int casse_tot;                        /* numero totale di clienti */
+    int num_casse_tot;                    /* numero totale di casse */
     int soglia_1;                         /* soglia1 */
     int soglia_2;                         /* soglia2 */
     volatile sig_atomic_t* casse_partite; /* se le casse non sono tutte partite, il direttore non controlla le notifiche */
-    unsigned seed;                        /* seed per randomizzazione */
 } direttore_opt_t;
 
 void* direttore(void* arg);
