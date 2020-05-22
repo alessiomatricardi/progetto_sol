@@ -63,7 +63,6 @@ static bool* exit_array;               /* array segnalazione uscita (clienti-sup
 static int exited_clients;             /* numero di clienti usciti */
 static int* queue_notify;              /* array per notificare grandezza coda */
 static bool* notify_sent;              /* array per dire al direttore di aver notificato */
-static volatile int casse_partite = 0; /* informa il direttore quando le casse sono tutte "partite" */
 volatile int should_quit = 0;          /* i cassieri possono terminare */
 
 static bool check_apertura_supermercato(supermercato_state_t stato);
@@ -255,19 +254,15 @@ int main(int argc, char** argv) {
 
     PTHREAD_CALL(error, pthread_create(&th_signal_handler, &sh_attr, signal_handler, &sig_hand_opt));
 
+    /* inizializzazione strutture casse */
+    for (size_t i = 0; i < config.k_tot; i++) {
+        init_cassa(&casse_opt[i], i, &stato_casse[i], code_casse[i]);
+    }
+
     /* creazione thread direttore */
     init_direttore(&direttore_opt, &stato_supermercato, casse_opt);
 
     PTHREAD_CALL(error, pthread_create(&th_direttore, NULL, direttore, &direttore_opt));
-
-    /* creazione threads casse */
-    for (size_t i = 0; i < config.k_tot; i++) {
-        init_cassa(&casse_opt[i], i, &stato_casse[i], code_casse[i]);
-
-        if (i < config.casse_iniziali)
-            PTHREAD_CALL(error, pthread_create(&th_casse[i], &casse_attr[i], cassa, &casse_opt[i]));
-    }
-    casse_partite = 1;
 
     /* creazione threads clienti */
     for (size_t i = 0; i < config.c_max; i++) {
@@ -386,7 +381,6 @@ static void init_direttore(direttore_opt_t* direttore_opt, direttore_state_t* st
     direttore_opt->num_casse_tot = config.k_tot;
     direttore_opt->soglia_1 = config.s1;
     direttore_opt->soglia_2 = config.s2;
-    direttore_opt->casse_partite = &casse_partite;
 }
 
 static void init_cassa(cassa_opt_t* cassa_opt, size_t pos, cassa_state_t* stato, BQueue_t* coda) {

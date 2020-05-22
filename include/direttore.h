@@ -36,7 +36,6 @@ typedef struct _direttore {
     int num_casse_tot;           /* numero totale di casse */
     int soglia_1;                /* soglia1 */
     int soglia_2;                /* soglia2 */
-    volatile int* casse_partite; /* se le casse non sono tutte partite, il direttore non controlla le notifiche */
 } direttore_opt_t;
 
 void* direttore(void* arg);

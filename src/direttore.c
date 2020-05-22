@@ -37,6 +37,12 @@ void* direttore(void* arg) {
     struct timespec update_time[direttore->num_casse_tot];
     memset(update_time, 0, sizeof(update_time));
 
+    /* creazione threads casse */
+    for (size_t i = 0; i < direttore->num_casse_tot; i++) {
+        if (i < *(direttore->num_casse_attive))
+            pthread_create(&direttore->th_casse[i], &direttore->attr_casse[i], cassa, &direttore->casse[i]);
+    }
+
     while (1) {
         // controlla stato
         res = check_apertura(direttore, stato);
@@ -79,7 +85,7 @@ static bool check_apertura(direttore_opt_t* direttore, direttore_state_t* stato)
 }
 
 static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_time) {
-    if (!*(direttore->casse_partite)) return;
+    //if (!*(direttore->casse_partite)) return;
     int soglia1 = direttore->soglia_1; /* chiude una cassa se ci sono almeno SOGLIA1 casse che hanno al più un cliente */
     int soglia2 = direttore->soglia_2; /* apre una cassa (se possibile) se c’è almeno una cassa con almeno SOGLIA2 clienti in coda */
     int* queue_notify = direttore->queue_notify;
