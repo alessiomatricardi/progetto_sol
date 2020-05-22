@@ -22,6 +22,7 @@ typedef struct _direttore {
     direttore_state_t* stato_direttore; /* stato attuale del direttore */
     pthread_mutex_t* main_mutex;        /* mutex principale */
     pthread_t* th_casse;                /* threads casse */
+    pthread_attr_t* attr_casse;              /* attributi casse */
     cassa_opt_t* casse;                 /* array di casse */
     pthread_cond_t* auth_cond;          /* var. condizione per autorizzare i clienti */
     bool* auth_array;                   /* array delle autorizzazioni */

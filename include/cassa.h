@@ -10,7 +10,6 @@
 typedef enum _cassa_state {
     APERTA,                /* cassa regolarmente aperta */
     CHIUSA,                /* la cassa è attualmente chiusa */
-    TERMINA,               /* la cassa era chiusa e viene chiuso il supermercato */
     SERVI_E_TERMINA,       /* la cassa era aperta e deve servire tutti i clienti in coda e chiudere */
     NON_SERVIRE_E_TERMINA, /* la cassa era aperta e deve far uscire tutti i clienti */
 } cassa_state_t;
@@ -20,7 +19,6 @@ typedef struct _cassa {
 
     pthread_mutex_t* main_mutex; /* mutex principale */
     cassa_state_t* stato_cassa;  /* stato attuale della cassa */
-    pthread_cond_t* cond;        /* var. condizione per attesa di essere aperta */
     BQueue_t* coda;              /* coda della cassa */
     pthread_cond_t* notify_cond; /* var. condizione su cui il direttore aspetta che tutti abbiano notificato */
     int* notify_size;            /* puntatore dove salvare la grandezza attuale della coda */

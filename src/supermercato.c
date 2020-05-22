@@ -12,9 +12,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <util.h>
-#include <time.h>
 
 /* macros */
 
@@ -40,7 +40,8 @@ static pthread_t th_direttore;      /* thread direttore */
 static pthread_t th_signal_handler; /* thread signal handler */
 
 /* attributi dei threads */
-static pthread_attr_t sh_attr; /* attributo del signal handler */
+static pthread_attr_t sh_attr;     /* attributo del signal handler */
+static pthread_attr_t* casse_attr; /* attributo delle casse */
 
 /* mutex e variabili di condizione in gioco nel sistema */
 static pthread_mutex_t main_mutex;    /* mutex principale */
@@ -49,7 +50,6 @@ static pthread_mutex_t exit_mutex;    /* mutex riservata a supermercato e client
 static pthread_mutex_t* client_mutex; /* mutex personale dei clienti, protegge dati accessibili anche dalle casse */
 
 static pthread_cond_t auth_cond;    /* var. condizione autorizzazione clienti */
-static pthread_cond_t* cond_casse;  /* var. condizione casse */
 static pthread_cond_t* cond_incoda; /* var. condizione clienti, quando vanno in coda */
 static pthread_cond_t exit_cond;    /* var. condizione clienti-supermercato per segnalare uscita */
 static pthread_cond_t notify_cond;  /* var. condizione casse-direttor per l'invio delle notifiche */
@@ -175,13 +175,13 @@ int main(int argc, char** argv) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-    cond_casse = malloc(config.k_tot * sizeof(pthread_cond_t));
-    if (CHECK_NULL(cond_casse)) {
+    cond_incoda = malloc(config.c_max * sizeof(pthread_cond_t));
+    if (CHECK_NULL(cond_incoda)) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-    cond_incoda = malloc(config.c_max * sizeof(pthread_cond_t));
-    if (CHECK_NULL(cond_incoda)) {
+    casse_attr = malloc(config.k_tot * sizeof(pthread_attr_t));
+    if (CHECK_NULL(casse_attr)) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
@@ -196,9 +196,6 @@ int main(int argc, char** argv) {
 
     /* inizializzazione var. condizione */
     PTHREAD_CALL(error, pthread_cond_init(&auth_cond, NULL));
-    for (size_t i = 0; i < config.k_tot; i++) {
-        PTHREAD_CALL(error, pthread_cond_init(&cond_casse[i], NULL));
-    }
     for (size_t i = 0; i < config.c_max; i++) {
         PTHREAD_CALL(error, pthread_cond_init(&cond_incoda[i], NULL));
     }
@@ -208,6 +205,10 @@ int main(int argc, char** argv) {
     /* inizializzazione attributi */
     PTHREAD_CALL(error, pthread_attr_init(&sh_attr));
     PTHREAD_CALL(error, pthread_attr_setdetachstate(&sh_attr, PTHREAD_CREATE_DETACHED));
+    for (size_t i = 0; i < config.k_tot; i++) {
+        PTHREAD_CALL(error, pthread_attr_init(&casse_attr[i]));
+        PTHREAD_CALL(error, pthread_attr_setdetachstate(&casse_attr[i], PTHREAD_CREATE_DETACHED));
+    }
 
     /* allocazione array di strutture clienti iniziali */
     for (size_t i = 0; i < config.c_max; i++) {
@@ -263,7 +264,8 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < config.k_tot; i++) {
         init_cassa(&casse_opt[i], i, &stato_casse[i], code_casse[i]);
 
-        PTHREAD_CALL(error, pthread_create(&th_casse[i], NULL, cassa, &casse_opt[i]));
+        if (i < config.casse_iniziali)
+            PTHREAD_CALL(error, pthread_create(&th_casse[i], &casse_attr[i], cassa, &casse_opt[i]));
     }
     casse_partite = 1;
 
@@ -314,15 +316,9 @@ int main(int argc, char** argv) {
         }
     }
     for (size_t i = 0; i < config.c_max; i++) {
-    }
-
-    for (size_t i = 0; i < config.c_max; i++) {
         PTHREAD_CALL(error, pthread_join(th_clienti[i], NULL));
     }
     should_quit = 1;
-    for (size_t i = 0; i < config.k_tot; i++) {
-        PTHREAD_CALL(error, pthread_join(th_casse[i], NULL));
-    }
     PTHREAD_CALL(error, pthread_join(th_direttore, NULL));
 
     /* salvataggio su file di log */
@@ -337,9 +333,6 @@ int main(int argc, char** argv) {
     }
 
     pthread_cond_destroy(&auth_cond);
-    for (size_t i = 0; i < config.k_tot; i++) {
-        if (&cond_casse[i]) pthread_cond_destroy(&cond_casse[i]);
-    }
     for (size_t i = 0; i < config.c_max; i++) {
         if (&cond_incoda[i]) pthread_cond_destroy(&cond_incoda[i]);
     }
@@ -381,6 +374,7 @@ static void init_direttore(direttore_opt_t* direttore_opt, direttore_state_t* st
     direttore_opt->stato_direttore = stato;
     direttore_opt->main_mutex = &main_mutex;
     direttore_opt->th_casse = th_casse;
+    direttore_opt->attr_casse = casse_attr;
     direttore_opt->casse = casse;
     direttore_opt->auth_cond = &auth_cond;
     direttore_opt->auth_array = auth_array;
@@ -398,7 +392,6 @@ static void init_direttore(direttore_opt_t* direttore_opt, direttore_state_t* st
 static void init_cassa(cassa_opt_t* cassa_opt, size_t pos, cassa_state_t* stato, BQueue_t* coda) {
     cassa_opt->main_mutex = &main_mutex;
     cassa_opt->stato_cassa = stato;
-    cassa_opt->cond = &cond_casse[pos];
     cassa_opt->coda = coda;
     cassa_opt->notify_cond = &notify_cond;
     cassa_opt->notify_size = &queue_notify[pos];
@@ -444,7 +437,7 @@ static void init_cliente(cliente_opt_t* cliente_opt, size_t pos, cassa_state_t* 
     cliente_opt->num_casse_tot = config.k_tot;
     cliente_opt->seed = seed;
     cliente_opt->t_permanenza = 0;
-    cliente_opt->tstart_attesa_coda = (struct timespec) { .tv_sec = 0, .tv_nsec = 0};
+    cliente_opt->tstart_attesa_coda = (struct timespec){.tv_sec = 0, .tv_nsec = 0};
     cliente_opt->tend_attesa_coda = (struct timespec){.tv_sec = 0, .tv_nsec = 0};
     cliente_opt->num_cambi_coda = 0;
 }

@@ -28,7 +28,7 @@ static void add_abs_time(struct timespec* ts, int msec) {
     }
 }
 static bool
-check_apertura(cassa_opt_t* cassa, cassa_state_t* stato, struct timespec* tstart_notifica, int* t_not);
+check_apertura(cassa_opt_t* cassa, cassa_state_t* stato, struct timespec tstart_apertura);
 static void set_stato_cliente(cliente_opt_t* cliente, cliente_state_t stato_cliente);
 static void libera_cassa(cassa_opt_t* cassa);
 static void chiusura_definitiva(cassa_opt_t* cassa, cassa_state_t stato);
@@ -53,6 +53,7 @@ void* cassa(void* arg) {
     bool res = true;
     int t_notifica = cassa->intervallo_notifica;
     void* temp_cliente = NULL;
+    struct timespec tstart_apertura = {0, 0};
 
     /* per valutare il tempo che intercorre tra una notifica ed un'altra */
     struct timespec tstart_notifica = {0, 0};
@@ -62,7 +63,7 @@ void* cassa(void* arg) {
 
     while (1) {
         /* controllo di essere aperta */
-        res = check_apertura(cassa, stato, &tstart_notifica, &t_notifica);
+        res = check_apertura(cassa, stato, tstart_apertura);
         if (!res) break;
 
         /* devo servire un cliente */
@@ -126,13 +127,13 @@ void* cassa(void* arg) {
 }
 
 static bool
-check_apertura(cassa_opt_t* cassa, cassa_state_t* stato, struct timespec* tstart_notifica, int* t_notifica) {
-    struct timespec tstart_apertura = {0, 0}, tend_apertura = {0, 0};
+check_apertura(cassa_opt_t* cassa, cassa_state_t* stato, struct timespec tstart_apertura) {
+    struct timespec tend_apertura = {0, 0};
     if (mutex_lock(cassa->main_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-    while (*stato == CHIUSA) {
+    if (*stato == CHIUSA) {
         libera_cassa(cassa);
         cassa->num_chiusure++;
         clock_gettime(CLOCK_MONOTONIC, &tend_apertura);
@@ -146,12 +147,11 @@ check_apertura(cassa_opt_t* cassa, cassa_state_t* stato, struct timespec* tstart
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
-        if (cond_wait(cassa->cond, cassa->main_mutex) != 0) {
+        if (mutex_unlock(cassa->main_mutex) != 0) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
-        *t_notifica = cassa->intervallo_notifica;
-        clock_gettime(CLOCK_MONOTONIC, tstart_notifica);
+        pthread_exit((void*)0);
     }
     if (*stato != APERTA) { /* ricevuto segnale */
         if (mutex_unlock(cassa->main_mutex) != 0) {
@@ -161,7 +161,6 @@ check_apertura(cassa_opt_t* cassa, cassa_state_t* stato, struct timespec* tstart
         clock_gettime(CLOCK_MONOTONIC, &tend_apertura);
         return false;
     }
-    clock_gettime(CLOCK_MONOTONIC, &tstart_apertura);
     if (mutex_unlock(cassa->main_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
@@ -198,12 +197,10 @@ static void libera_cassa(cassa_opt_t* cassa) {
         if (tmp_cliente == NOMORECLIENTS) break;
         cliente_opt_t* cliente = (cliente_opt_t*)tmp_cliente;
         set_stato_cliente(cliente, CAMBIA_CASSA);
-        continue;
     }
 }
 
 static void chiusura_definitiva(cassa_opt_t* cassa, cassa_state_t stato) {
-    if (stato == TERMINA) return;
     void* tmp_cliente;
     struct timespec ts = {0, 0};
     while (!should_quit) {

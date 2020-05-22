@@ -4,7 +4,7 @@
 #include <string.h>
 #include <util.h>
 
-#define UPDATE_SECONDS 2
+#define UPDATE_SECONDS 3
 
 /* pid del processo */
 extern pid_t pid;
@@ -127,9 +127,15 @@ static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_
             }
         } else {
             double elapsed = spec_difftime(update_time[i], now);
-            double diff = spec_difftime(update_time[to_open_index], update_time[i]);
-            if (to_open_index == -1 || (diff < 0 && elapsed > UPDATE_SECONDS)) {
-                to_open_index = i;
+            if (to_open_index == -1) {
+                if (elapsed > UPDATE_SECONDS) {
+                    to_open_index = i;
+                }
+            } else {
+                double diff = spec_difftime(update_time[to_open_index], update_time[i]);
+                if (diff < 0 && elapsed > UPDATE_SECONDS) {
+                    to_open_index = i;
+                }
             }
         }
     }
@@ -140,7 +146,7 @@ static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_
         kill(pid, SIGUSR1);
     }
 
-    if (is_verified_soglia1 && is_verified_soglia2) return;
+    //if (is_verified_soglia1 && is_verified_soglia2) return;
 
     // chiudo una cassa, se possibile
     if (is_verified_soglia1) {
@@ -160,14 +166,14 @@ static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_
         return;
     }
     // apro una cassa, se possibile
-    if (is_verified_soglia2 && to_open_index != -1) {
+    else if (is_verified_soglia2 && to_open_index != -1) {
         if (mutex_lock(direttore->main_mutex) != 0) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
         *(direttore->casse[to_open_index].stato_cassa) = APERTA;
 
-        if (cond_signal(direttore->casse[to_open_index].cond) != 0) {
+        if (pthread_create(&direttore->th_casse[to_open_index], &direttore->attr_casse[to_open_index], cassa, &direttore->casse[to_open_index]) != 0) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
@@ -188,13 +194,7 @@ static void chiudi_casse(direttore_opt_t* direttore, direttore_state_t* stato) {
         kill(pid, SIGUSR1);
     }
     for (size_t i = 0; i < direttore->num_casse_tot; i++) {
-        if (*(direttore->casse[i].stato_cassa) == CHIUSA) {
-            *(direttore->casse[i].stato_cassa) = TERMINA;
-            if (cond_signal(direttore->casse[i].cond) != 0) {
-                LOG_CRITICAL;
-                kill(pid, SIGUSR1);
-            }
-        } else {
+        if (*(direttore->casse[i].stato_cassa) != CHIUSA) {
             *(direttore->casse[i].stato_cassa) = (*stato == CHIUSURA) ? SERVI_E_TERMINA : NON_SERVIRE_E_TERMINA;
         }
     }

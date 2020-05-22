@@ -38,7 +38,6 @@ void* cliente(void* arg) {
 
     /* fai acquisti */
     msleep(cliente->tempo_acquisti);
-    set_stato(cliente, IN_CODA);
     int cassa_scelta = CASSA_NOT_FOUND;
     unsigned seed = cliente->seed;
     clock_gettime(CLOCK_MONOTONIC, &cliente->tstart_attesa_coda);
@@ -121,16 +120,17 @@ static void vai_in_coda(cliente_opt_t* cliente, int* scelta, unsigned* seed) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-    if (cliente->num_casse_attive != 0) {
+    if (*(cliente->num_casse_attive) > 0) {
         /*
          * scelgo randomicamente una delle casse attive in quel momento
          * tmp compreso tra 0 e num_casse_attive-1
         */
         int tmp = rand_r(seed) % *(cliente->num_casse_attive);
         for (size_t i = 0; i < cliente->num_casse_tot; i++) {
-            if (cliente->stato_casse[i] != CHIUSA && cliente->stato_casse[i] != TERMINA) {
+            if (cliente->stato_casse[i] != CHIUSA) {
                 if (tmp == 0) {
                     // mettiti in coda
+                    set_stato(cliente, IN_CODA);
                     if (push(cliente->coda_casse[i], cliente) == -1) {
                         LOG_CRITICAL;
                         kill(pid, SIGUSR1);
