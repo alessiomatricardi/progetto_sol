@@ -28,7 +28,7 @@ int write_log_filename(const char* log_filename);
  * 
  * @return 0 se successo, -1 se fallisce
 */
-int print_to_log(int num_clienti, int num_prodotti,
-                 Queue_t* clienti, BQueue_t* cassieri, const char* filename);
+int print_to_log(int num_clienti, long num_prodotti,
+                 Queue_t* clienti, cassa_opt_t* casse, int k, const char* filename);
 
 #endif /* FILESTAT_H */

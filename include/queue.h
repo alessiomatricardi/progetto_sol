@@ -9,9 +9,9 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 
 struct queue_s;
 typedef struct queue_s Queue_t;
@@ -32,7 +32,7 @@ Queue_t* initQueue();
  * @param puntatore alla coda da cancellare
  * @param funzione di deallocazione del dato presente nella coda
 */
-void deleteQueue(Queue_t *q, void (*fun)(void*));
+void deleteQueue(Queue_t* q, void (*fun)(void*));
 
 /**
  * inserisce un elemento nella coda
@@ -43,7 +43,7 @@ void deleteQueue(Queue_t *q, void (*fun)(void*));
  * @return 0 sul successo
  * @return -1 se fallimento (dato da inserire NULL)
 */
-int lpush(Queue_t *q, void* data);
+int lpush(Queue_t* q, void* data);
 
 /**
  * estrae un elemento dalla coda
@@ -51,7 +51,7 @@ int lpush(Queue_t *q, void* data);
  * @param puntatore alla coda
  * @return puntatore al dato da restituire
 */
-void* lpop(Queue_t *q);
+void* lpop(Queue_t* q);
 
 /**
  * restituisce la dimensione attuale della coda

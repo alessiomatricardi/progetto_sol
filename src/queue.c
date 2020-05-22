@@ -11,9 +11,9 @@ struct node_s {
 typedef struct node_s node_t;
 
 struct queue_s {
-    node_t* head;              /* puntatore alla testa, dove rimuovo */
-    node_t* tail;              /* puntatore alla coda, dove inserisco */
-    unsigned long count;       /* numero di elementi attualmente presenti nella coda */
+    node_t* head;        /* puntatore alla testa, dove rimuovo */
+    node_t* tail;        /* puntatore alla coda, dove inserisco */
+    unsigned long count; /* numero di elementi attualmente presenti nella coda */
 };
 
 Queue_t* initQueue() {

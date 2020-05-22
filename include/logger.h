@@ -22,7 +22,7 @@ static char* levelname(enum __loglevel level) {
 #define LOG(where, level, format, ...)                                  \
     {                                                                   \
         do {                                                            \
-            fprintf(where, "[ %s ] %s:%d " format "\n",                 \
+            fprintf(where, "[ %s ] %s:%d\t " format "\n",                 \
                     levelname(level), __FILE__, __LINE__, __VA_ARGS__); \
             fflush(where);                                              \
         } while (0);                                                    \
@@ -32,7 +32,7 @@ static char* levelname(enum __loglevel level) {
     {                                                                                \
         do {                                                                         \
             fprintf(where,                                                           \
-                    "[ %s ] %s:%d %s\n", levelname(level), __FILE__, __LINE__, msg); \
+                    "[ %s ] %s:%d\t %s\n", levelname(level), __FILE__, __LINE__, msg); \
             fflush(where);                                                           \
         } while (0);                                                                 \
     }

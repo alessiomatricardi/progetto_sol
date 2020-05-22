@@ -56,19 +56,23 @@ static pthread_cond_t notify_cond;  /* var. condizione casse-direttor per l'invi
 
 /* altre variabili globali */
 static config_t config;
-static int id_cliente = 0;             /* id cliente progressivo */
-static int num_casse_attive;           /* casse attualmente attive */
-static bool* auth_array;               /* array autorizzazioni (clienti-direttore) */
-static bool* exit_array;               /* array segnalazione uscita (clienti-supermercato) */
-static int exited_clients;             /* numero di clienti usciti */
-static int* queue_notify;              /* array per notificare grandezza coda */
-static bool* notify_sent;              /* array per dire al direttore di aver notificato */
-volatile int should_quit = 0;          /* i cassieri possono terminare */
+static int id_cliente = 0;       /* id cliente progressivo, alla fine rappresenterà anche il numero totale di clienti */
+static int num_casse_attive;     /* casse attualmente attive */
+static bool* auth_array;         /* array autorizzazioni (clienti-direttore) */
+static bool* exit_array;         /* array segnalazione uscita (clienti-supermercato) */
+static int exited_clients;       /* numero di clienti usciti */
+static int* queue_notify;        /* array per notificare grandezza coda */
+static bool* notify_sent;        /* array per dire al direttore di aver notificato */
+volatile int should_quit = 0;    /* i cassieri ed il direttore possono terminare */
+static BQueue_t** code_casse;    /* K code */
+static Queue_t* stat_clienti;    /* coda di clienti per salvataggio su log */
+static long totale_prodotti = 0; /* numero totale di prodotti acquistati da tutti i clienti */
 
 static bool check_apertura_supermercato(supermercato_state_t stato);
 static void init_direttore(direttore_opt_t* direttore_opt, direttore_state_t* stato, cassa_opt_t* casse);
 static void init_cassa(cassa_opt_t* cassa_opt, size_t pos, cassa_state_t* stato, BQueue_t* coda);
 static void init_cliente(cliente_opt_t* cliente_opt, size_t pos, cassa_state_t* stati_casse, BQueue_t** code);
+static void cleanup();
 /* funzione di lettura dei parametri passati da terminale */
 static int set_config_filename(char* config_filename, int argc, char** argv) {
     if (argc == 3) {
@@ -129,6 +133,7 @@ int main(int argc, char** argv) {
         printf("Qualcosa è andato storto durante la lettura del file di configurazione.\n");
         exit(EXIT_FAILURE);
     }
+    /* stampa debug */
     LOG_DEBUG("casse iniziali = %d", config.casse_iniziali);
     LOG_DEBUG("t singolo prodotto = %d", config.t_singolo_prodotto);
     LOG_DEBUG("t aggiornamento clienti = %d", config.t_agg_clienti);
@@ -141,6 +146,7 @@ int main(int argc, char** argv) {
     LOG_DEBUG("E = %d", config.e);
     LOG_DEBUG("LOG FILENAME = %s", config.log_file_name);
 
+    /* scrivo il nome del file di log prodotto alla terminazione */
     if (write_log_filename(config.log_file_name) == -1) {
         fprintf(stderr, "Non è stato possibile salvare il nome del file di log\n");
         return EXIT_FAILURE;
@@ -151,12 +157,8 @@ int main(int argc, char** argv) {
     cliente_opt_t* clienti_opt[config.c_max];         /* strutture dei clienti */
     cassa_opt_t casse_opt[config.k_tot];              /* K strutture delle casse */
     direttore_opt_t direttore_opt;                    /* struttura del direttore */
-    BQueue_t* code_casse[config.k_tot];               /* K code */
     cassa_state_t stato_casse[config.k_tot];          /* array degli stati delle casse */
     supermercato_state_t stato_supermercato = ATTIVO; /* stato del supermercato/direttore */
-
-    /* coda di clienti per salvataggio su log */
-    Queue_t* stat_clienti;
 
     /* allocazione threads, mutex e var. condizione */
     th_clienti = malloc(config.c_max * sizeof(pthread_t));
@@ -219,12 +221,17 @@ int main(int argc, char** argv) {
     }
 
     /* allocazione code casse */
+    if (CHECK_NULL(code_casse = malloc(config.k_tot * sizeof(BQueue_t*)))) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
+    }
     for (size_t i = 0; i < config.k_tot; i++) {
         if (CHECK_NULL(code_casse[i] = init_BQueue(config.c_max))) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
     }
+
     /* allocazione coda stat_clienti */
     if (CHECK_NULL(stat_clienti = initQueue())) {
         LOG_CRITICAL;
@@ -233,11 +240,11 @@ int main(int argc, char** argv) {
 
     /* allocazione e/o inizializzazione altre variabili */
     num_casse_attive = config.casse_iniziali;
-    auth_array = malloc(config.c_max * sizeof(bool)); /* array autorizzazioni (clienti-direttore) */
-    exit_array = malloc(config.c_max * sizeof(bool)); /* array segnalazione uscita (clienti-supermercato) */
-    exited_clients = 0;                               /* numero di clienti usciti */
-    queue_notify = malloc(config.k_tot * sizeof(int));
-    notify_sent = malloc(config.k_tot * sizeof(bool));
+    auth_array = malloc(config.c_max * sizeof(bool));  /* array autorizzazioni (clienti-direttore) */
+    exit_array = malloc(config.c_max * sizeof(bool));  /* array segnalazione uscita (clienti-supermercato) */
+    exited_clients = 0;                                /* numero di clienti usciti */
+    queue_notify = malloc(config.k_tot * sizeof(int)); /* array notifiche */
+    notify_sent = malloc(config.k_tot * sizeof(bool)); /* array 'ho notificato' */
     for (size_t i = 0; i < config.c_max; i++) {
         auth_array[i] = exit_array[i] = false;
     }
@@ -248,7 +255,6 @@ int main(int argc, char** argv) {
     }
 
     /* creazione thread signal handler */
-
     sig_hand_opt.quit_mutex = &quit_mutex;
     sig_hand_opt.stato_supermercato = &stato_supermercato;
 
@@ -267,6 +273,10 @@ int main(int argc, char** argv) {
     /* creazione threads clienti */
     for (size_t i = 0; i < config.c_max; i++) {
         init_cliente(clienti_opt[i], i, stato_casse, code_casse);
+        if (lpush(stat_clienti, clienti_opt[i]) != 0) {
+            LOG_CRITICAL;
+            kill(pid, SIGUSR1);
+        }
 
         PTHREAD_CALL(error, pthread_create(&th_clienti[i], NULL, cliente, clienti_opt[i]));
     }
@@ -284,22 +294,22 @@ int main(int argc, char** argv) {
                 kill(pid, SIGUSR1);
             }
         }
-        // ricicla threads
+        // ricicla threads clienti
         for (size_t i = 0; i < config.c_max; i++) {
             if (*(clienti_opt[i]->is_exited)) {
                 PTHREAD_CALL(error, pthread_join(th_clienti[i], NULL));
-                /* modifica solo variabili che identificano un thread */
-                if (lpush(stat_clienti, clienti_opt[i]) != 0) {
-                    LOG_CRITICAL;
-                    kill(pid, SIGUSR1);
-                }
                 if (CHECK_NULL(clienti_opt[i] = malloc(sizeof(cliente_opt_t)))) {
                     LOG_CRITICAL;
                     kill(pid, SIGUSR1);
                 }
                 init_cliente(clienti_opt[i], i, stato_casse, code_casse);
+                /* modifica solo variabili che identificano un thread */
                 *(clienti_opt[i]->is_exited) = false;
                 *(clienti_opt[i]->is_authorized) = false;
+                if (lpush(stat_clienti, clienti_opt[i]) != 0) {
+                    LOG_CRITICAL;
+                    kill(pid, SIGUSR1);
+                }
 
                 PTHREAD_CALL(error, pthread_create(&th_clienti[i], NULL, cliente, clienti_opt[i]));
                 if (--exited_clients == 0) break;
@@ -310,6 +320,7 @@ int main(int argc, char** argv) {
             kill(pid, SIGUSR1);
         }
     }
+    /* join clienti e direttore */
     for (size_t i = 0; i < config.c_max; i++) {
         PTHREAD_CALL(error, pthread_join(th_clienti[i], NULL));
     }
@@ -317,32 +328,16 @@ int main(int argc, char** argv) {
     PTHREAD_CALL(error, pthread_join(th_direttore, NULL));
 
     /* salvataggio su file di log */
-    //print_to_log(config.log_file_name, stat_clienti, stat_casse);
-
-    /* deallocazione mutex, var. condizione e attributi */
-    pthread_mutex_destroy(&main_mutex);
-    pthread_mutex_destroy(&quit_mutex);
-    pthread_mutex_destroy(&exit_mutex);
-    for (size_t i = 0; i < config.c_max; i++) {
-        if (&client_mutex[i]) pthread_mutex_destroy(&client_mutex[i]);
+    if (print_to_log(id_cliente, totale_prodotti, stat_clienti, casse_opt, config.k_tot, config.log_file_name) != 0) {
+        fprintf(stderr, "Non è stato possibile scrivere il risultato dell'esecuzione sul file di log\n");
+        return EXIT_FAILURE;
     }
 
-    pthread_cond_destroy(&auth_cond);
-    for (size_t i = 0; i < config.c_max; i++) {
-        if (&cond_incoda[i]) pthread_cond_destroy(&cond_incoda[i]);
-    }
-
-    pthread_attr_destroy(&sh_attr);
-
-    /* deallocazione altre strutture */
-    for (size_t i = 0; i < config.k_tot; i++) {
-        if (code_casse[i]) delete_BQueue(code_casse[i], NULL);
-    }
-    if (stat_clienti) deleteQueue(stat_clienti, free);
+    /* free & destroy */
+    cleanup();
 
     fprintf(stdout, "CHIUSO!\n");
-
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 static bool check_apertura_supermercato(supermercato_state_t stato) {
@@ -427,6 +422,7 @@ static void init_cliente(cliente_opt_t* cliente_opt, size_t pos, cassa_state_t* 
     int n_prod = rand_r(&seed) % (config.p_max + 1);
     int t_acquisti = rand_r(&seed) % (config.t_max - MIN_T_ACQUISTI + 1) + MIN_T_ACQUISTI;
     cliente_opt->num_prodotti = n_prod;
+    totale_prodotti += n_prod;
     cliente_opt->tempo_acquisti = t_acquisti;
     cliente_opt->num_casse_tot = config.k_tot;
     cliente_opt->seed = seed;
@@ -434,4 +430,41 @@ static void init_cliente(cliente_opt_t* cliente_opt, size_t pos, cassa_state_t* 
     cliente_opt->tstart_attesa_coda = (struct timespec){.tv_sec = 0, .tv_nsec = 0};
     cliente_opt->tend_attesa_coda = (struct timespec){.tv_sec = 0, .tv_nsec = 0};
     cliente_opt->num_cambi_coda = 0;
+}
+
+static void cleanup() {
+    /* deallocazione mutex, var. condizione e attributi */
+
+    if (th_clienti) free(th_clienti);
+    if (th_casse) free(th_casse);
+
+    pthread_mutex_destroy(&main_mutex);
+    pthread_mutex_destroy(&quit_mutex);
+    pthread_mutex_destroy(&exit_mutex);
+    for (size_t i = 0; i < config.c_max; i++) {
+        if (&client_mutex[i]) pthread_mutex_destroy(&client_mutex[i]);
+    }
+    if (client_mutex) free(client_mutex);
+
+    pthread_cond_destroy(&auth_cond);
+    for (size_t i = 0; i < config.c_max; i++) {
+        if (&cond_incoda[i]) pthread_cond_destroy(&cond_incoda[i]);
+    }
+    free(cond_incoda);
+    pthread_cond_destroy(&exit_cond);
+    pthread_cond_destroy(&notify_cond);
+
+    pthread_attr_destroy(&sh_attr);
+
+    /* deallocazione altre strutture */
+    for (size_t i = 0; i < config.k_tot; i++) {
+        pthread_attr_destroy(&casse_attr[i]);
+        if (code_casse[i]) delete_BQueue(code_casse[i], NULL);
+    }
+    if(code_casse) free(code_casse);
+    if (casse_attr) free(casse_attr);
+    if (auth_array) free(auth_array);
+    if (exit_array) free(exit_array);
+    if (queue_notify) free(queue_notify);
+    if (notify_sent) free(notify_sent);
 }

@@ -40,9 +40,9 @@ void* cliente(void* arg) {
     msleep(cliente->tempo_acquisti);
     int cassa_scelta = CASSA_NOT_FOUND;
     unsigned seed = cliente->seed;
-    clock_gettime(CLOCK_MONOTONIC, &cliente->tstart_attesa_coda);
 
     if (cliente->num_prodotti > 0) {
+        clock_gettime(CLOCK_MONOTONIC, &cliente->tstart_attesa_coda);
         while (1) {
             // scegli cassa tra quelle attive
             vai_in_coda(cliente, &cassa_scelta, &seed);
