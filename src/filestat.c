@@ -40,19 +40,18 @@ int print_to_log(int num_clienti, long num_prodotti,
         LOG_CRITICAL;
         return -1;
     }
-    /* scrivo dati relativi a supermercato */
-    if (fprintf(file, "SUPERMERCATO;%d;%ld;\n", num_clienti, num_prodotti) < 0) return -1;
-    /* dati relativi ai clienti */
-    if (fprintf(file, "CLIENTE;\n") < 0) return -1;
     /** 
+     * dati relativi ai clienti
      * FORMAT
-     * ID;TEMPO PERMANENZA;TEMPO ATTESA CODA;# CAMBI CODA;# PRODOTTI ACQUISTATI;\n
+     * CLIENTE;ID;TEMPO PERMANENZA;TEMPO ATTESA CODA;# CAMBI CODA;# PRODOTTI ACQUISTATI;\n
     */
     void* tmp_cliente = NULL;
     while ((tmp_cliente = lpop(clienti)) != NULL) {
         cliente_opt_t* c = (cliente_opt_t*)tmp_cliente;
-        fprintf(file, "%d;%.8f;%.8f;%d;%d;\n",
-                c->id_cliente, c->t_permanenza, spec_difftime(c->tstart_attesa_coda, c->tend_attesa_coda), c->num_cambi_coda, c->num_prodotti);
+        fprintf(file, "CLIENTE;%d;%.8f;%.8f;%c;%d;%d;\n",
+                c->id_cliente, c->t_permanenza,
+                spec_difftime(c->tstart_attesa_coda, c->tend_attesa_coda),
+                c->num_cambi_coda > 0 ? 'y' : 'n',c->num_cambi_coda, c->num_prodotti);
         free(c);
     }
     if (errno) {
@@ -61,18 +60,17 @@ int print_to_log(int num_clienti, long num_prodotti,
         return -1;
     }
     if (clienti) deleteQueue(clienti, free);
-    /* dati relativi ai cassieri */
-    if (fprintf(file, "CASSA;\n") < 0) return -1;
     /** 
+     * dati relativi ai cassieri
      * FORMAT
-     * ID;# CLIENTI SERVITI;# CHIUSURE;\n
+     * CASSA;ID;# CLIENTI SERVITI;# PRODOTTI ELABORATI;# CHIUSURE;\n
      * [TEMPO DI APERTURA i;\n]
-     * SERVIZIO;\n
+     * SERVIZIO\n
      * [TEMPO DI SERVIZIO j;\n]
-     * FINE CASSA;\n
+     * FINE CASSA\n
     */
     for (size_t i = 0; i < k; i++) {
-        fprintf(file, "%d;%d;%d;\n", casse[i].id_cassa, casse[i].num_clienti_serviti, casse[i].num_chiusure);
+        fprintf(file, "CASSA;%d;%d;%ld;%d;\n", casse[i].id_cassa, casse[i].num_clienti_serviti, casse[i].num_prodotti_elaborati, casse[i].num_chiusure);
         void* t = NULL;
         while ((t = lpop(casse[i].tempi_apertura)) != NULL) {
             fprintf(file, "%.8f;\n",*((double*)t));
@@ -83,7 +81,7 @@ int print_to_log(int num_clienti, long num_prodotti,
             fclose(file);
             return -1;
         }
-        fprintf(file, "SERVIZIO;\n");
+        fprintf(file, "SERVIZIO\n");
         while ((t = lpop(casse[i].t_clienti_serviti)) != NULL) {
             fprintf(file, "%d;\n", *((int*)t));
             free(t);
@@ -93,11 +91,13 @@ int print_to_log(int num_clienti, long num_prodotti,
             fclose(file);
             return -1;
         }
-        fprintf(file, "FINE CASSA;\n");
+        fprintf(file, "FINE\n");
         if(casse[i].tempi_apertura) deleteQueue(casse[i].tempi_apertura, free);
         if (casse[i].t_clienti_serviti) deleteQueue(casse[i].t_clienti_serviti, free);
 
     }
+    /* scrivo dati relativi a supermercato */
+    fprintf(file, "SUPERMERCATO;%d;%ld;\n", num_clienti, num_prodotti);
     if (fclose(file) == EOF) {
         LOG_CRITICAL;
         return -1;

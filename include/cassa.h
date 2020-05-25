@@ -31,10 +31,11 @@ typedef struct _cassa {
     int intervallo_notifica; /* tempo che intercorre tra una notifica e l'altra */
     /* variabili utili per log */
 
-    int num_clienti_serviti;    /* numero di clienti serviti */
-    Queue_t* tempi_apertura;    /* lista dei tempi di apertura */
-    int num_chiusure;           /* numero di chiusure */
-    Queue_t* t_clienti_serviti; /* tempo di servizio di ogni cliente servito */
+    int num_clienti_serviti;     /* numero di clienti serviti */
+    long num_prodotti_elaborati; /* numero totale di prodotti elaborati */
+    Queue_t* tempi_apertura;     /* lista dei tempi di apertura */
+    int num_chiusure;            /* numero di chiusure */
+    Queue_t* t_clienti_serviti;  /* tempo di servizio di ogni cliente servito */
 } cassa_opt_t;
 
 void* cassa(void* arg);

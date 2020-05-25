@@ -392,6 +392,7 @@ static void init_cassa(cassa_opt_t* cassa_opt, size_t pos, cassa_state_t* stato,
     cassa_opt->tempo_prodotto = config.t_singolo_prodotto;
     cassa_opt->intervallo_notifica = config.t_agg_clienti;
     cassa_opt->num_clienti_serviti = 0;
+    cassa_opt->num_prodotti_elaborati = 0;
     if (CHECK_NULL(cassa_opt->tempi_apertura = initQueue())) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);

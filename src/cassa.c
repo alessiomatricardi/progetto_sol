@@ -93,6 +93,7 @@ void* cassa(void* arg) {
             kill(pid, SIGUSR1);
         }
         int t_servizio = cassa->tempo_fisso + cassa->tempo_prodotto * cliente->num_prodotti;
+        cassa->num_prodotti_elaborati += cliente->num_prodotti;
         if (mutex_unlock(cliente->mutex_cliente) != 0) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
@@ -233,6 +234,7 @@ static void chiusura_definitiva(cassa_opt_t* cassa, cassa_state_t stato, struct 
                 kill(pid, SIGUSR1);
             }
             int t_servizio = cassa->tempo_fisso + cassa->tempo_prodotto * cliente->num_prodotti;
+            cassa->num_prodotti_elaborati += cliente->num_prodotti;
             if (mutex_unlock(cliente->mutex_cliente) != 0) {
                 LOG_CRITICAL;
                 kill(pid, SIGUSR1);

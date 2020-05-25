@@ -33,14 +33,15 @@ all: $(EXE)
 
 test:
 	./supermercato &
-	sleep 5
+	sleep 25
 	kill -s hup `cat ./var/run/sm.pid`
-	echo "done"
+	chmod +x analisi.sh
+	./analisi.sh
 
 clean:
 	-rm -f $(EXE)
 	clear
 cleanall: clean
-	\rm -f $(SRCDIR)/*.o $(LIBDIR)/*.a *~
+	-rm -f $(SRCDIR)/*.o $(LIBDIR)/*.a *~
 	clear
 
