@@ -6,6 +6,7 @@ do
 done
 logfile=`cat ./var/run/log_filename.txt`
 casse=0;
+echo "--- STATISTICHE SUPERMERCATO ---";
 echo "CLIENTI";
 printf "| %6s | %6s | %8s | %8s | %6s |\n" "id" "# prod" "t tot" "t coda" "# code"
 while read -r line

@@ -55,18 +55,18 @@ static pthread_cond_t exit_cond;    /* var. condizione clienti-supermercato per 
 static pthread_cond_t notify_cond;  /* var. condizione casse-direttor per l'invio delle notifiche */
 
 /* altre variabili globali */
-static config_t config;
-static int id_cliente = 0;       /* id cliente progressivo, alla fine rappresenterà anche il numero totale di clienti */
-static int num_casse_attive;     /* casse attualmente attive */
-static bool* auth_array;         /* array autorizzazioni (clienti-direttore) */
-static bool* exit_array;         /* array segnalazione uscita (clienti-supermercato) */
-static int exited_clients;       /* numero di clienti usciti */
-static int* queue_notify;        /* array per notificare grandezza coda */
-static bool* notify_sent;        /* array per dire al direttore di aver notificato */
-volatile int should_quit = 0;    /* i cassieri ed il direttore possono terminare */
-static BQueue_t** code_casse;    /* K code */
-static Queue_t* stat_clienti;    /* coda di clienti per salvataggio su log */
-static long totale_prodotti = 0; /* numero totale di prodotti acquistati da tutti i clienti */
+static config_t config;       /* dove salvare dati in ingresso */
+static int id_cliente = 0;    /* id cliente progressivo, alla fine rappresenterà anche il numero totale di clienti */
+static int num_casse_attive;  /* casse attualmente attive */
+static bool* auth_array;      /* array autorizzazioni (clienti-direttore) */
+static bool* exit_array;      /* array segnalazione uscita (clienti-supermercato) */
+static int exited_clients;    /* numero di clienti usciti */
+static int* queue_notify;     /* array per notificare grandezza coda */
+static bool* notify_sent;     /* array per dire al direttore di aver notificato */
+volatile int should_quit = 0; /* i cassieri ed il direttore possono terminare */
+volatile int need_auth = 1;   /* i clienti hanno bisogno dell'autorizzazione? */
+static BQueue_t** code_casse; /* K code */
+static Queue_t* stat_clienti; /* coda di clienti per salvataggio su log */
 
 static bool check_apertura_supermercato(supermercato_state_t stato);
 static void init_direttore(direttore_opt_t* direttore_opt, direttore_state_t* stato, cassa_opt_t* casse);
@@ -208,7 +208,6 @@ int main(int argc, char** argv) {
     PTHREAD_CALL(error, pthread_attr_setdetachstate(&sh_attr, PTHREAD_CREATE_DETACHED));
     for (size_t i = 0; i < config.k_tot; i++) {
         PTHREAD_CALL(error, pthread_attr_init(&casse_attr[i]));
-        PTHREAD_CALL(error, pthread_attr_setdetachstate(&casse_attr[i], PTHREAD_CREATE_DETACHED));
     }
 
     /* allocazione array di strutture clienti iniziali */
@@ -268,7 +267,7 @@ int main(int argc, char** argv) {
     /* creazione thread direttore */
     init_direttore(&direttore_opt, &stato_supermercato, casse_opt);
 
-    PTHREAD_CALL(error, pthread_create(&th_direttore, NULL, direttore, &direttore_opt));
+    PTHREAD_CALL(error, pthread_create(&th_direttore, NULL, fun_direttore, &direttore_opt));
 
     /* creazione threads clienti */
     for (size_t i = 0; i < config.c_max; i++) {
@@ -278,7 +277,7 @@ int main(int argc, char** argv) {
             kill(pid, SIGUSR1);
         }
 
-        PTHREAD_CALL(error, pthread_create(&th_clienti[i], NULL, cliente, clienti_opt[i]));
+        PTHREAD_CALL(error, pthread_create(&th_clienti[i], NULL, fun_cliente, clienti_opt[i]));
     }
 
     while (1) {
@@ -311,7 +310,7 @@ int main(int argc, char** argv) {
                     kill(pid, SIGUSR1);
                 }
 
-                PTHREAD_CALL(error, pthread_create(&th_clienti[i], NULL, cliente, clienti_opt[i]));
+                PTHREAD_CALL(error, pthread_create(&th_clienti[i], NULL, fun_cliente, clienti_opt[i]));
                 if (--exited_clients == 0) break;
             }
         }
@@ -328,7 +327,7 @@ int main(int argc, char** argv) {
     PTHREAD_CALL(error, pthread_join(th_direttore, NULL));
 
     /* salvataggio su file di log */
-    if (print_to_log(id_cliente, totale_prodotti, stat_clienti, casse_opt, config.k_tot, config.log_file_name) != 0) {
+    if (print_to_log(id_cliente, stat_clienti, casse_opt, config.k_tot, config.log_file_name) != 0) {
         fprintf(stderr, "Non è stato possibile scrivere il risultato dell'esecuzione sul file di log\n");
         return EXIT_FAILURE;
     }
@@ -419,11 +418,10 @@ static void init_cliente(cliente_opt_t* cliente_opt, size_t pos, cassa_state_t* 
     cliente_opt->num_exited = &exited_clients;
     cliente_opt->exit_cond = &exit_cond;
     cliente_opt->id_cliente = id_cliente++;
-    unsigned seed = (pos + 1) * time(NULL);
+    unsigned seed = id_cliente * time(NULL);
     int n_prod = rand_r(&seed) % (config.p_max + 1);
     int t_acquisti = rand_r(&seed) % (config.t_max - MIN_T_ACQUISTI + 1) + MIN_T_ACQUISTI;
     cliente_opt->num_prodotti = n_prod;
-    totale_prodotti += n_prod;
     cliente_opt->tempo_acquisti = t_acquisti;
     cliente_opt->num_casse_tot = config.k_tot;
     cliente_opt->seed = seed;
@@ -462,7 +460,7 @@ static void cleanup() {
         pthread_attr_destroy(&casse_attr[i]);
         if (code_casse[i]) delete_BQueue(code_casse[i], NULL);
     }
-    if(code_casse) free(code_casse);
+    if (code_casse) free(code_casse);
     if (casse_attr) free(casse_attr);
     if (auth_array) free(auth_array);
     if (exit_array) free(exit_array);

@@ -38,6 +38,6 @@ typedef struct _cassa {
     Queue_t* t_clienti_serviti;  /* tempo di servizio di ogni cliente servito */
 } cassa_opt_t;
 
-void* cassa(void* arg);
+void* fun_cassa(void* arg);
 
 #endif /* CASSA_H */

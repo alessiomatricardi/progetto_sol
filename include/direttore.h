@@ -38,6 +38,6 @@ typedef struct _direttore {
     int soglia_2;                /* soglia2 */
 } direttore_opt_t;
 
-void* direttore(void* arg);
+void* fun_direttore(void* arg);
 
 #endif /* DIRETTORE_H */

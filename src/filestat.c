@@ -32,14 +32,14 @@ int write_log_filename(const char* log_filename) {
     return 0;
 }
 
-int print_to_log(int num_clienti, long num_prodotti,
-                 Queue_t* clienti, cassa_opt_t* casse, int k, const char* filename) {
+int print_to_log(int num_clienti, Queue_t* clienti, cassa_opt_t* casse, int k, const char* filename) {
     errno = 0;
     FILE* file = NULL;
     if ((file = fopen(filename, "w")) == NULL) {
         LOG_CRITICAL;
         return -1;
     }
+    long num_prodotti = 0;
     /** 
      * dati relativi ai clienti
      * FORMAT
@@ -70,6 +70,7 @@ int print_to_log(int num_clienti, long num_prodotti,
      * FINE CASSA\n
     */
     for (size_t i = 0; i < k; i++) {
+        num_prodotti += casse[i].num_prodotti_elaborati;
         fprintf(file, "CASSA;%d;%d;%ld;%d;\n", casse[i].id_cassa, casse[i].num_clienti_serviti, casse[i].num_prodotti_elaborati, casse[i].num_chiusure);
         void* t = NULL;
         while ((t = lpop(casse[i].tempi_apertura)) != NULL) {

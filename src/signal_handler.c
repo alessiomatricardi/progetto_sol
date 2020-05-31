@@ -8,6 +8,9 @@
 /* pid del processo */
 extern pid_t pid;
 
+/* i clienti hanno bisogno dell'autorizzazione? */
+extern volatile int need_auth;
+
 static bool handle_signal(int signal, sig_handler_opt_t* sig_hand) {
     switch (signal) {
         case SIGHUP: {
@@ -32,6 +35,7 @@ static bool handle_signal(int signal, sig_handler_opt_t* sig_hand) {
                 LOG_CRITICAL;
                 kill(pid, SIGUSR1);
             }
+            need_auth = 0; /* il cliente non ha più bisogno di essere autorizzato */
             return true;
         }
         case SIGUSR1:

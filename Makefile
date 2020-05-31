@@ -1,6 +1,6 @@
 # Makefile
 # Alessio Matricardi
-# LAST UPDATE 16/05/20
+# LAST UPDATE 31/05/20
 
 SRCDIR = ./src
 LIBDIR = ./lib
@@ -18,7 +18,7 @@ OPTFLAGS	= -O3
 EXE			= $(BINDIR)/supermercato
 
 
-.PHONY: all test clean cleanall
+.PHONY: all test testquit clean cleanall
 
 $(SRCDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) -c -o $@ $<
@@ -33,10 +33,17 @@ all: $(EXE)
 
 test:
 	./supermercato &
-	sleep 25
-	kill -s hup `cat ./var/run/sm.pid`
-	chmod +x analisi.sh
-	./analisi.sh
+	\sleep 25
+	\kill -s hup `cat ./var/run/sm.pid`
+	\chmod +x analisi.sh
+	\./analisi.sh
+	
+testquit:
+	./supermercato &
+	\sleep 25
+	\kill -s quit `cat ./var/run/sm.pid`
+	\chmod +x analisi.sh
+	\./analisi.sh
 
 clean:
 	-rm -f $(EXE)

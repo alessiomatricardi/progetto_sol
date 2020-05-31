@@ -51,6 +51,6 @@ typedef struct _cliente {
 /*
  * funzione eseguita da un thread cliente
 */
-void* cliente(void* arg);
+void* fun_cliente(void* arg);
 
 #endif /* CLIENTE_H */

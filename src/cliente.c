@@ -10,6 +10,9 @@
 /* pid del processo */
 extern pid_t pid;
 
+/* il cliente ha bisogno dell'autorizzazione? */
+extern volatile int need_auth;
+
 static void set_stato(cliente_opt_t* cliente, cliente_state_t stato);
 static cliente_state_t get_stato(cliente_opt_t* cliente);
 static void vai_in_coda(cliente_opt_t* cliente, int* scelta, unsigned* seed);
@@ -17,7 +20,11 @@ static void attendi_turno(cliente_opt_t* cliente);
 static void uscita_senza_acquisti(cliente_opt_t* cliente);
 static void avverti_supermercato(cliente_opt_t* cliente);
 
-void* cliente(void* arg) {
+void* fun_cliente(void* arg) {
+    if (CHECK_NULL(arg)) {
+        LOG_CRITICAL;
+        kill(pid, SIGUSR1);
+    }
     /* maschera segnali */
     int error = 0;
     sigset_t sigmask;
@@ -184,7 +191,7 @@ static void uscita_senza_acquisti(cliente_opt_t* cliente) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-    while (!(*(cliente->is_authorized))) {
+    while (!(*(cliente->is_authorized)) && need_auth) {
         if (cond_wait(cliente->auth_cond, cliente->main_mutex) != 0) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
