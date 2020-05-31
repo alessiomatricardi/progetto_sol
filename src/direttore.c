@@ -4,7 +4,8 @@
 #include <string.h>
 #include <util.h>
 
-#define UPDATE_SECONDS 3
+#define UPDATE_SECONDS 4
+#define AUTH_WAIT_MSEC 200
 
 /* pid del processo */
 extern pid_t pid;
@@ -38,7 +39,7 @@ void* fun_direttore(void* arg) {
     direttore_opt_t* direttore = (direttore_opt_t*)arg;
 
     bool res = false;
-    struct timespec update_time[direttore->num_casse_tot];
+    struct timespec update_time[direttore->num_casse_tot]; // tempo di ultimo aggiornamento stato della cassa
     memset(update_time, 0, sizeof(update_time));
 
     /* creazione threads casse */
@@ -61,7 +62,7 @@ void* fun_direttore(void* arg) {
     /* chiudi tutte le casse */
     chiudi_casse(direttore);
     while (!should_quit) {
-        msleep(200);
+        msleep(AUTH_WAIT_MSEC); // attesa passiva
         // risveglia eventuali clienti che attendono autorizzazione per uscire
         autorizza_uscita(direttore);
     }
@@ -70,6 +71,9 @@ void* fun_direttore(void* arg) {
     return NULL;
 }
 
+/**
+ * controlla di non aver ricevuto alcun segnale di chiusura
+*/
 static bool check_apertura(direttore_opt_t* direttore) {
     direttore_state_t* stato = direttore->stato_direttore;
     if (mutex_lock(direttore->quit_mutex) != 0) {
@@ -90,10 +94,16 @@ static bool check_apertura(direttore_opt_t* direttore) {
     return true;
 }
 
+/**
+ * gestione delle casse
+*/
 static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_time) {
     //if (!*(direttore->casse_partite)) return;
-    int soglia1 = direttore->soglia_1; /* chiude una cassa se ci sono almeno SOGLIA1 casse che hanno al più un cliente */
-    int soglia2 = direttore->soglia_2; /* apre una cassa (se possibile) se c’è almeno una cassa con almeno SOGLIA2 clienti in coda */
+    /* chiude una cassa se ci sono almeno SOGLIA1 casse che hanno al più un cliente */
+    int soglia1 = direttore->soglia_1;
+    /* apre una cassa (se possibile) se c’è almeno una cassa con almeno SOGLIA2 clienti in coda */
+    int soglia2 = direttore->soglia_2;
+
     int* queue_notify = direttore->queue_notify;
     int count_s1 = 0;
     bool is_verified_soglia1 = false;
@@ -103,18 +113,22 @@ static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_
     int to_close_num_clienti = direttore->num_clienti;
     struct timespec now = {0, 0};
     bool check_casse;
-    //msleep(200);
+
     if (mutex_lock(direttore->main_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
+    // controllo che tutte le casse attualmente aperte mi abbiano notificato
     do {
         check_casse = true;
-        for (size_t i = 0; i < direttore->num_casse_tot; i++) {
+        size_t i = 0;
+        while(i < direttore->num_casse_tot && check_casse) {
             if (*(direttore->casse[i].stato_cassa) == APERTA && !direttore->notify_sent[i]) {
                 check_casse = false;
             }
+            i++;
         }
+        // se no, faccio attesa passiva fino a che non vengo risvegliato
         if (!check_casse) {
             if (cond_wait(direttore->notify_cond, direttore->main_mutex) != 0) {
                 LOG_CRITICAL;
@@ -122,9 +136,24 @@ static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_
             }
         }
     } while (!check_casse);
+    // reset array "ho notificato"
     for (size_t i = 0; i < direttore->num_casse_tot; i++) {
         direttore->notify_sent[i] = false;
     }
+
+    /**
+     * algoritmo del direttore
+     * 
+     * se posso aprire una cassa:
+     * - apro la cassa chiusa da più tempo rispetto alle altre
+     * - la apro se e solo se è chiusa da più di UPDATE_SECONDS secondi
+     * 
+     * se posso chiudere una cassa:
+     * - chiudo la cassa con meno clienti
+     * - la chiudo se e solo se è aperta da più di UPDATE_SECONDS secondi
+     * 
+     * la precedenza viene data alla chiusura di una cassa
+    */
     clock_gettime(CLOCK_MONOTONIC, &now);
     for (size_t i = 0; i < direttore->num_casse_tot; i++) {
         if (*(direttore->casse[i].stato_cassa) == APERTA) {
@@ -138,17 +167,20 @@ static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_
                 is_verified_soglia2 = true;
             }
         } else {
-            double elapsed = spec_difftime(update_time[i], now);
             if (to_open_index == -1) {
-                if (elapsed > UPDATE_SECONDS) {
-                    to_open_index = i;
-                }
+                to_open_index = i;
             } else {
                 double diff = spec_difftime(update_time[to_open_index], update_time[i]);
-                if (diff < 0 && elapsed > UPDATE_SECONDS) {
+                if (diff < 0) {
                     to_open_index = i;
                 }
             }
+        }
+    }
+    if(to_open_index != -1) {
+        double elapsed = spec_difftime(update_time[to_open_index], now);
+        if(elapsed <= UPDATE_SECONDS) {
+            to_open_index = -1;
         }
     }
     is_verified_soglia1 = count_s1 >= soglia1 && to_close_index != -1 && *(direttore->num_casse_attive) > MIN_CASSE_APERTE;
@@ -157,8 +189,6 @@ static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
-
-    //if (is_verified_soglia1 && is_verified_soglia2) return;
 
     // chiudo una cassa, se possibile
     if (is_verified_soglia1) {
@@ -204,6 +234,9 @@ static void controlla_casse(direttore_opt_t* direttore, struct timespec* update_
     }
 }
 
+/**
+ * indica a tutte le casse attualmente aperte che devono chiudere in sicurezza
+*/
 static void chiudi_casse(direttore_opt_t* direttore) {
     direttore_state_t* stato = direttore->stato_direttore;
     if (mutex_lock(direttore->main_mutex) != 0) {
@@ -221,6 +254,9 @@ static void chiudi_casse(direttore_opt_t* direttore) {
     }
 }
 
+/**
+ * join delle casse che hanno terminato di servire tutti i clienti
+*/
 static void attendi_casse(direttore_opt_t* direttore) {
     if (mutex_lock(direttore->main_mutex) != 0) {
         LOG_CRITICAL;
@@ -240,6 +276,9 @@ static void attendi_casse(direttore_opt_t* direttore) {
     }
 }
 
+/**
+ * autorizza tutti i clienti che attendono di uscire
+*/
 static void autorizza_uscita(direttore_opt_t* direttore) {
     bool* auth_array = direttore->auth_array;
     if (mutex_lock(direttore->main_mutex) != 0) {

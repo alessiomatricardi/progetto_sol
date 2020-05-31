@@ -13,8 +13,8 @@ extern pid_t pid;
 /* il cliente ha bisogno dell'autorizzazione? */
 extern volatile int need_auth;
 
-static void set_stato(cliente_opt_t* cliente, cliente_state_t stato);
-static cliente_state_t get_stato(cliente_opt_t* cliente);
+static void set_stato_cliente(cliente_opt_t* cliente, cliente_state_t stato);
+static cliente_state_t get_stato_cliente(cliente_opt_t* cliente);
 static void vai_in_coda(cliente_opt_t* cliente, int* scelta, unsigned* seed);
 static void attendi_turno(cliente_opt_t* cliente);
 static void uscita_senza_acquisti(cliente_opt_t* cliente);
@@ -55,7 +55,7 @@ void* fun_cliente(void* arg) {
             vai_in_coda(cliente, &cassa_scelta, &seed);
 
             if (cassa_scelta == CASSA_NOT_FOUND) {
-                set_stato(cliente, USCITA_SEGNALE);
+                set_stato_cliente(cliente, USCITA_SEGNALE);
                 break;
             }
 
@@ -66,7 +66,7 @@ void* fun_cliente(void* arg) {
              * se deve cambiare cassa, torna a scegliere la cassa
              * altrimenti può uscire dal supermercato
             */
-            if (get_stato(cliente) != CAMBIA_CASSA)
+            if (get_stato_cliente(cliente) != CAMBIA_CASSA)
                 break;
             else {
                 cliente->num_cambi_coda++;
@@ -79,7 +79,7 @@ void* fun_cliente(void* arg) {
         uscita_senza_acquisti(cliente);
         LOG_DEBUG("cliente %d esce senza acquisti", cliente->id_cliente);
     }
-    LOG_DEBUG("cliente %d esce con stato %d", cliente->id_cliente, get_stato(cliente));
+    LOG_DEBUG("cliente %d esce con stato %d", cliente->id_cliente, get_stato_cliente(cliente));
     clock_gettime(CLOCK_MONOTONIC, &tend_permanenza);
     cliente->t_permanenza = spec_difftime(tstart_permanenza, tend_permanenza);
     // devo dire al supermercato che sono uscito
@@ -88,7 +88,10 @@ void* fun_cliente(void* arg) {
     return NULL;
 }
 
-static void set_stato(cliente_opt_t* cliente, cliente_state_t stato) {
+/**
+ * modifica lo stato del cliente
+*/
+static void set_stato_cliente(cliente_opt_t* cliente, cliente_state_t stato) {
     if (mutex_lock(cliente->mutex_cliente) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
@@ -100,7 +103,10 @@ static void set_stato(cliente_opt_t* cliente, cliente_state_t stato) {
     }
 }
 
-static cliente_state_t get_stato(cliente_opt_t* cliente) {
+/**
+ * restituisce lo stato del cliente
+*/
+static cliente_state_t get_stato_cliente(cliente_opt_t* cliente) {
     cliente_state_t stato = ENTRATO;
     if (mutex_lock(cliente->mutex_cliente) != 0) {
         LOG_CRITICAL;
@@ -117,10 +123,6 @@ static cliente_state_t get_stato(cliente_opt_t* cliente) {
 /**
  * il cliente si mette in coda in una delle casse attive (in modo random)
  * la scelta viene salvata nel parametro scelta
- * 
- * @param cliente puntatore alla struttura dati del cliente
- * @param scelta variabile dove viene salvata la scelta del cliente
- * @param seed seed per randomizzazione
 */
 static void vai_in_coda(cliente_opt_t* cliente, int* scelta, unsigned* seed) {
     if (mutex_lock(cliente->main_mutex) != 0) {
@@ -137,7 +139,7 @@ static void vai_in_coda(cliente_opt_t* cliente, int* scelta, unsigned* seed) {
             if (cliente->stato_casse[i] != CHIUSA) {
                 if (tmp == 0) {
                     // mettiti in coda
-                    set_stato(cliente, IN_CODA);
+                    set_stato_cliente(cliente, IN_CODA);
                     if (push(cliente->coda_casse[i], cliente) == -1) {
                         LOG_CRITICAL;
                         kill(pid, SIGUSR1);
@@ -160,8 +162,6 @@ static void vai_in_coda(cliente_opt_t* cliente, int* scelta, unsigned* seed) {
 
 /**
  * il cliente si mette in attesa dopo essere entrato nella coda
- * 
- * @param cliente puntatore alla struttura dati del cliente 
 */
 static void attendi_turno(cliente_opt_t* cliente) {
     if (mutex_lock(cliente->mutex_cliente) != 0) {
@@ -181,16 +181,16 @@ static void attendi_turno(cliente_opt_t* cliente) {
 }
 
 /**
- * il cliente attende l'autorizzazione da parte del direttore per uscire
- * 
- * @param cliente puntatore alla struttura dati del cliente
+ * se il supermercato non sta chiudendo immediatamente (sigquit),
+ * allora il cliente attende l'autorizzazione da parte del direttore per uscire.
 */
 static void uscita_senza_acquisti(cliente_opt_t* cliente) {
-    set_stato(cliente, USCITA_SENZA_ACQUISTI);
+    set_stato_cliente(cliente, USCITA_SENZA_ACQUISTI);
     if (mutex_lock(cliente->main_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
+    *(cliente->is_authorized) = false;
     while (!(*(cliente->is_authorized)) && need_auth) {
         if (cond_wait(cliente->auth_cond, cliente->main_mutex) != 0) {
             LOG_CRITICAL;
@@ -205,8 +205,6 @@ static void uscita_senza_acquisti(cliente_opt_t* cliente) {
 
 /**
  * il cliente avverte il supermercato di essere uscito
- * 
- * @param cliente puntatore alla struttura dati del cliente 
 */
 static void avverti_supermercato(cliente_opt_t* cliente) {
     if (mutex_lock(cliente->exit_mutex) != 0) {

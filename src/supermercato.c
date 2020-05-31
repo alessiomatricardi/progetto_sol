@@ -245,7 +245,8 @@ int main(int argc, char** argv) {
     queue_notify = malloc(config.k_tot * sizeof(int)); /* array notifiche */
     notify_sent = malloc(config.k_tot * sizeof(bool)); /* array 'ho notificato' */
     for (size_t i = 0; i < config.c_max; i++) {
-        auth_array[i] = exit_array[i] = false;
+        auth_array[i] = true; /* saranno poi i clienti con 0 prodotti a settarlo a false */
+        exit_array[i] = false;
     }
     for (size_t i = 0; i < config.k_tot; i++) {
         queue_notify[i] = 0;

@@ -17,7 +17,10 @@ extern pid_t pid;
 /* per informare cassieri e direttore quando è il momento di chiudere definitivamente */
 extern volatile int should_quit;
 
-static void add_abs_time(struct timespec* ts, int msec) {
+/**
+ * aggiunge msec millisecondi al tempo attuale
+*/
+static void add_to_now(struct timespec* ts, int msec) {
     clock_gettime(CLOCK_MONOTONIC, ts);
     if (msec <= 0) return;
     ts->tv_sec += msec / 1000;
@@ -29,8 +32,7 @@ static void add_abs_time(struct timespec* ts, int msec) {
 }
 static cassa_state_t get_stato_cassa(cassa_opt_t* cassa);
 static void add_tapertura(cassa_opt_t* cassa, struct timespec tstart_apertura);
-static bool
-check_apertura(cassa_opt_t* cassa, struct timespec tstart_apertura);
+static bool check_apertura(cassa_opt_t* cassa, struct timespec tstart_apertura);
 static void set_stato_cliente(cliente_opt_t* cliente, cliente_state_t stato_cliente);
 static void libera_cassa(cassa_opt_t* cassa);
 static void chiusura_definitiva(cassa_opt_t* cassa, struct timespec tstart_apertura);
@@ -72,19 +74,21 @@ void* fun_cassa(void* arg) {
         if (!res) break;
 
         /* devo servire un cliente */
-        add_abs_time(&ts_notifica, t_notifica);
+        add_to_now(&ts_notifica, t_notifica);
         temp_cliente = pop(cassa->coda, &ts_notifica);
         if (CHECK_NULL(temp_cliente)) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
 
+        // non c'è alcun cliente da servire
         if (temp_cliente == NOMORECLIENTS) {
             // invia notifica
             invia_notifica(cassa, &tstart_notifica);
             t_notifica = cassa->intervallo_notifica;
             continue;
         }
+        // c'è un cliente da servire
         cliente_opt_t* cliente = (cliente_opt_t*)temp_cliente;
         clock_gettime(CLOCK_MONOTONIC, &cliente->tend_attesa_coda);
 
@@ -92,7 +96,9 @@ void* fun_cassa(void* arg) {
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
         double msec_diff = SEC_TO_MSEC * spec_difftime(now, ts_notifica);
-        t_notifica = (int)msec_diff + ((msec_diff - (int)msec_diff) > 0);
+        t_notifica = (int)msec_diff + ((msec_diff - (int)msec_diff) > 0 ? 1 : 0);
+        
+        // calcolo tempo di servizio
         if (mutex_lock(cliente->mutex_cliente) != 0) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
@@ -103,6 +109,7 @@ void* fun_cassa(void* arg) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
+        // aggiungo tempo di servizio alla lista
         int* t_serv;
         if (CHECK_NULL(t_serv = malloc(sizeof(int)))) {
             LOG_CRITICAL;
@@ -113,6 +120,10 @@ void* fun_cassa(void* arg) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
+        /**
+         * servo il cliente e, se necessario,
+         * invio notifiche al direttore
+        */ 
         while (t_servizio >= t_notifica) {
             msleep(t_notifica);
 
@@ -124,15 +135,21 @@ void* fun_cassa(void* arg) {
         }
         msleep(t_servizio);
         t_notifica -= t_servizio;
+
+        // setto lo stato del cliente
         set_stato_cliente(cliente, FINITO_CASSA);
         cassa->num_clienti_serviti++;
     }
+    
     LOG_DEBUG("cassa %d - chiusura ricevuta", cassa->id_cassa);
     chiusura_definitiva(cassa, tstart_apertura);
     LOG_DEBUG("cassa %d - chiude definitivamente", cassa->id_cassa);
     return NULL;
 }
 
+/**
+ * restituisce lo stato della cassa
+*/
 static cassa_state_t get_stato_cassa(cassa_opt_t* cassa) {
     cassa_state_t stato;
     if (mutex_lock(cassa->main_mutex) != 0) {
@@ -147,9 +164,13 @@ static cassa_state_t get_stato_cassa(cassa_opt_t* cassa) {
     return stato;
 }
 
+/**
+ * calcola il tempo di apertura della cassa
+ * e lo aggiunge alla lista dei tempi
+*/
 static void add_tapertura(cassa_opt_t* cassa, struct timespec tstart_apertura) {
-    struct timespec tend_apertura = {0, 0};
     cassa->num_chiusure++;
+    struct timespec tend_apertura = {0, 0};
     clock_gettime(CLOCK_MONOTONIC, &tend_apertura);
     double* t_apertura;
     if (CHECK_NULL(t_apertura = malloc(sizeof(double)))) {
@@ -163,8 +184,13 @@ static void add_tapertura(cassa_opt_t* cassa, struct timespec tstart_apertura) {
     }
 }
 
-static bool
-check_apertura(cassa_opt_t* cassa, struct timespec tstart_apertura) {
+/**
+ * controlla che la cassa sia aperta
+ * se è chiusa libera la cassa (i clienti in coda dovranno cambiarla)
+ * se non è nè aperta nè chiusa -> il supermercato sta chiudendo
+ * quindi dovrà chiudere di conseguenza anch'essa
+*/
+static bool check_apertura(cassa_opt_t* cassa, struct timespec tstart_apertura) {
     if (mutex_lock(cassa->main_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
@@ -192,6 +218,9 @@ check_apertura(cassa_opt_t* cassa, struct timespec tstart_apertura) {
     return true;
 }
 
+/**
+ * modifica lo stato del cliente
+*/
 static void set_stato_cliente(cliente_opt_t* cliente, cliente_state_t stato_cliente) {
     if (mutex_lock(cliente->mutex_cliente) != 0) {
         LOG_CRITICAL;
@@ -208,6 +237,12 @@ static void set_stato_cliente(cliente_opt_t* cliente, cliente_state_t stato_clie
     }
 }
 
+/**
+ * chiamata quando il direttore decide di chiudere la cassa
+ * itera controllando la coda:
+ * se c'è un cliente, a questo viene indicato di cambiare cassa
+ * altrimenti ha finito il controllo
+*/
 static void libera_cassa(cassa_opt_t* cassa) {
     void* tmp_cliente;
     struct timespec ts = {0, 0};
@@ -224,21 +259,37 @@ static void libera_cassa(cassa_opt_t* cassa) {
     }
 }
 
+/**
+ * chiamata quando arriva un segnale sighup o sigquit al supermercato
+ * itera controllando la coda ogni 100 millisecondi
+ * (aspetta fino a che ci sono clienti all'interno del supermercato):
+ * se c'è un cliente e il segnale era sighup, lo serve
+ * se c'è un cliente e il segnale era sigquit, lo invita ad uscire
+ * se non c'è un cliente, torna a guardare la coda
+*/
 static void chiusura_definitiva(cassa_opt_t* cassa, struct timespec tstart_apertura) {
     void* tmp_cliente;
     struct timespec ts = {0, 0};
     cassa_state_t stato = get_stato_cassa(cassa);
     while (!should_quit) {
-        add_abs_time(&ts, 100);
+        add_to_now(&ts, 100);
+
         tmp_cliente = pop(cassa->coda, &ts);
         if (CHECK_NULL(tmp_cliente)) {
             LOG_CRITICAL;
             kill(pid, SIGUSR1);
         }
+        // non c'è alcun cliente
         if (tmp_cliente == NOMORECLIENTS) continue;
+        // cliente da servire
         cliente_opt_t* cliente = (cliente_opt_t*)tmp_cliente;
         clock_gettime(CLOCK_MONOTONIC, &cliente->tend_attesa_coda);
+        /*
+         * nel primo ramo il cliente viene servito,
+         * nel ramo else viene invitato ad uscire
+        */
         if (stato == SERVI_E_TERMINA) {
+            // calcolo tempo di servizio
             if (mutex_lock(cliente->mutex_cliente) != 0) {
                 LOG_CRITICAL;
                 kill(pid, SIGUSR1);
@@ -249,6 +300,8 @@ static void chiusura_definitiva(cassa_opt_t* cassa, struct timespec tstart_apert
                 LOG_CRITICAL;
                 kill(pid, SIGUSR1);
             }
+
+            // aggiungo tempo di servizio alla lista dei tempi
             int* t_serv;
             if (CHECK_NULL(t_serv = malloc(sizeof(int)))) {
                 LOG_CRITICAL;
@@ -259,6 +312,8 @@ static void chiusura_definitiva(cassa_opt_t* cassa, struct timespec tstart_apert
                 LOG_CRITICAL;
                 kill(pid, SIGUSR1);
             }
+
+            // servo cliente
             msleep(t_servizio);
             set_stato_cliente(cliente, FINITO_CASSA);
             cassa->num_clienti_serviti++;
@@ -269,12 +324,16 @@ static void chiusura_definitiva(cassa_opt_t* cassa, struct timespec tstart_apert
     add_tapertura(cassa, tstart_apertura);
 }
 
+/**
+ * invio notifica al direttore e lo "sveglio"
+*/
 static void invia_notifica(cassa_opt_t* cassa, struct timespec* tstart_notifica) {
     int size = get_size(cassa->coda);
     if (size == -1) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
     }
+
     if (mutex_lock(cassa->main_mutex) != 0) {
         LOG_CRITICAL;
         kill(pid, SIGUSR1);
